@@ -1,0 +1,14 @@
+[
+  {
+    "model_id": "CD4_fold0",
+    "cell_type": "CD4 T cell",
+    "model": "gs://YOUR_BUCKET/models/CD4/fold0/chrombpnet_nobias.h5",
+    "peaks": "gs://YOUR_BUCKET/peaks/CD4.narrowPeak"
+  },
+  {
+    "model_id": "NK_fold0",
+    "cell_type": "NK",
+    "model": "gs://YOUR_BUCKET/models/NK/fold0/chrombpnet_nobias.h5",
+    "peaks": "gs://YOUR_BUCKET/peaks/NK.narrowPeak"
+  }
+]

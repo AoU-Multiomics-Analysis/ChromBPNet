@@ -1,0 +1,13 @@
+{
+  "ChromBPNetVariantScoring.variants": "gs://YOUR_BUCKET/variants.tsv",
+  "ChromBPNetVariantScoring.model_manifest": "gs://YOUR_BUCKET/models.json",
+  "ChromBPNetVariantScoring.genome": "gs://YOUR_BUCKET/hg38.fa",
+  "ChromBPNetVariantScoring.genome_index": "gs://YOUR_BUCKET/hg38.fa.fai",
+  "ChromBPNetVariantScoring.chrom_sizes": "gs://YOUR_BUCKET/hg38.chrom.sizes",
+  "ChromBPNetVariantScoring.docker_image": "ghcr.io/aou-multiomics-analysis/chrombpnet/variant-scoring@sha256:REPLACE_WITH_TESTED_DIGEST",
+  "ChromBPNetVariantScoring.batch_size": 128,
+  "ChromBPNetVariantScoring.num_shuf": 0,
+  "ChromBPNetVariantScoring.random_seed": 1234,
+  "ChromBPNetVariantScoring.scoring_disk_gb": 100,
+  "ChromBPNetVariantScoring.num_preempt": 0
+}
