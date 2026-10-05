@@ -38,7 +38,7 @@ Interfaces: typed ModelSpec manifest; localized score File array for merge.
 - [x] Add regression tests for workflow-scope file writing and command quoting.
 - [x] Implement WDL, pinned image, CPU image smoke test, and Actions.
 - [x] Run unit tests, miniwdl validation, static checks, and command rendering tests.
-- [ ] Review all changes, commit, push, create and attach the pull request.
+- [x] Review all changes, commit, push, create and attach the pull request.
 
 ## Verification record
 
@@ -52,3 +52,6 @@ Terra and L4 execution have not been tested.
 A task-local FASTA index copy also protects localized inputs when parallel
 downloads make the index timestamp older than the FASTA. A regression test
 checks that updates cannot change the input index.
+
+The initial Linux image build and synthetic scorer smoke test passed in
+GitHub Actions on commit 49c97a0. PR #1 was created and attached to this chat.
