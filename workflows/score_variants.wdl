@@ -85,7 +85,7 @@ task ValidateManifest {
         set -euo pipefail
         echo '[manifest] Start input checks'
         python /opt/chrombpnet/scripts/validate_manifest.py \
-            --manifest '~{sub(manifest, "'", "'\\''")}' \
+            --manifest '~{sub(manifest, "'", "'\"'\"'")}' \
             --output manifest.validated.txt
         echo '[manifest] Input checks complete'
     >>>
@@ -126,18 +126,18 @@ task ScoreVariants {
         set -euo pipefail
         exec > >(tee score.log) 2>&1
         echo '[score] Check manifest validation and GPU driver'
-        test -s '~{sub(manifest_validation, "'", "'\\''")}'
+        test -s '~{sub(manifest_validation, "'", "'\"'\"'")}'
         nvidia-smi
         echo '[score] Start variant effects'
         python /opt/chrombpnet/scripts/score_variants.py \
-            --model-id '~{sub(model_id, "'", "'\\''")}' \
-            --cell-type '~{sub(cell_type, "'", "'\\''")}' \
-            --model '~{sub(model, "'", "'\\''")}' \
-            --peaks '~{sub(peaks, "'", "'\\''")}' \
-            --variants '~{sub(variants, "'", "'\\''")}' \
-            --genome '~{sub(genome, "'", "'\\''")}' \
-            --genome-index '~{sub(genome_index, "'", "'\\''")}' \
-            --chrom-sizes '~{sub(chrom_sizes, "'", "'\\''")}' \
+            --model-id '~{sub(model_id, "'", "'\"'\"'")}' \
+            --cell-type '~{sub(cell_type, "'", "'\"'\"'")}' \
+            --model '~{sub(model, "'", "'\"'\"'")}' \
+            --peaks '~{sub(peaks, "'", "'\"'\"'")}' \
+            --variants '~{sub(variants, "'", "'\"'\"'")}' \
+            --genome '~{sub(genome, "'", "'\"'\"'")}' \
+            --genome-index '~{sub(genome_index, "'", "'\"'\"'")}' \
+            --chrom-sizes '~{sub(chrom_sizes, "'", "'\"'\"'")}' \
             --batch-size ~{batch_size} \
             --num-shuf ~{num_shuf} \
             --random-seed ~{random_seed} \
@@ -178,7 +178,7 @@ task MergeVariantEffects {
         echo '[merge] Start cell-type merge'
         # Evaluate this list at command rendering, after File localization.
         python /opt/chrombpnet/scripts/merge_scores.py \
-            --score-files '~{sub(write_lines(score_files), "'", "'\\''")}' \
+            --score-files '~{sub(write_lines(score_files), "'", "'\"'\"'")}' \
             --long-output variant_effects.all_models.tsv \
             --wide-output variant_effects.wide.tsv
         echo '[merge] Cell-type merge complete'

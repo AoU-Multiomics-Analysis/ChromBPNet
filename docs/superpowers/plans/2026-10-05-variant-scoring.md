@@ -26,8 +26,8 @@ Require g2-standard-16 and nvidia-l4. Never submit Terra jobs or build Docker lo
 Files: scripts/io_utils.py, scripts/validate_manifest.py, scripts/merge_scores.py,
 scripts/score_variants.py, tests/test_pipeline.py.
 Interfaces: named CLI arguments; per-model labelled TSV; long and wide TSV outputs.
-- [ ] Write failing input/localization/merge tests and run unittest.
-- [ ] Implement validation, scoring wrapper, and merge. Run the complete unit suite.
+- [x] Write failing input/localization/merge tests and run unittest.
+- [x] Implement validation, scoring wrapper, and merge. Run the complete unit suite.
 
 ### Task 2: WDL, image, and CI
 
@@ -35,7 +35,16 @@ Files: workflows/score_variants.wdl, containers/Dockerfile,
 containers/environment.yml, tests/check_wdl.py, tests/smoke_image.py,
 .github/workflows/test.yml, .github/workflows/image.yml, examples/inputs.json, README.md.
 Interfaces: typed ModelSpec manifest; localized score File array for merge.
-- [ ] Add regression tests for workflow-scope file writing and command quoting.
-- [ ] Implement WDL, pinned image, CPU image smoke test, and Actions.
-- [ ] Run unit tests, miniwdl validation, static checks, and command rendering tests.
+- [x] Add regression tests for workflow-scope file writing and command quoting.
+- [x] Implement WDL, pinned image, CPU image smoke test, and Actions.
+- [x] Run unit tests, miniwdl validation, static checks, and command rendering tests.
 - [ ] Review all changes, commit, push, create and attach the pull request.
+
+## Verification record
+
+Fourteen unit tests passed. WDL syntax and workflow-scope write checks passed.
+An independent review found two input-handling issues. Both were fixed with
+regression tests: Java-compatible shell quoting, and preservation of reserved
+or numeric-looking variant IDs. The real scorer CPU smoke test passed in an
+existing local TensorFlow environment. The Linux image will be checked in Actions.
+Terra and L4 execution have not been tested.

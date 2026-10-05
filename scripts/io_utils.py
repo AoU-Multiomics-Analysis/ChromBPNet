@@ -105,3 +105,35 @@ def read_scores(path):
             if not math.isfinite(float(row[field])):
                 raise ValueError(f'Nonfinite score: {field}')
     return fields, rows
+
+
+def write_scorer_variants(rows, path):
+    """Use stable internal IDs to avoid pandas missing-value and number inference."""
+    mapping = {f'wdl_variant_{index:09d}': row for index, row in enumerate(rows)}
+    with open(path, 'w') as stream:
+        writer = csv.writer(stream, delimiter='\t', lineterminator='\n')
+        for token, row in mapping.items():
+            writer.writerow([row['chr'], str(int(row['pos'])), row['allele1'], row['allele2'], token])
+    return mapping
+
+
+def restore_score_file(path, mapping, require_all=False):
+    """Restore all original variant fields after checking scorer row identity."""
+    with readable(path).open() as stream:
+        reader = csv.DictReader(stream, delimiter='\t')
+        fields = reader.fieldnames or []
+        if not set(VARIANT_FIELDS).issubset(fields):
+            raise ValueError('Scorer output has no variant identity columns')
+        scores = list(reader)
+    if require_all and [row['variant_id'] for row in scores] != list(mapping):
+        raise ValueError('Scorer lost variants or changed variant identity/order')
+    for row in scores:
+        original = mapping.get(row['variant_id'])
+        if original is None or [row[f] for f in VARIANT_FIELDS[:4]] != [
+            original['chr'], str(int(original['pos'])), original['allele1'], original['allele2']]:
+            raise ValueError('Scorer changed variant identity, coordinates, or alleles')
+        row.update(original)
+    with open(path, 'w') as stream:
+        writer = csv.DictWriter(stream, fieldnames=fields, delimiter='\t', lineterminator='\n')
+        writer.writeheader()
+        writer.writerows(scores)

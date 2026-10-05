@@ -54,6 +54,8 @@ class WDLTests(unittest.TestCase):
                     num_shuf=0, max_peaks=None, random_seed=1234, memory_gb=64, disk_gb=100, num_preempt=0)
         env = WDL.values_from_json(args, task.available_inputs, task.required_inputs)
         command = task.command.eval(env, LocalStdLib('1.0')).value
+        # Cromwell uses Java regex replacement rules. No replacement backslash is allowed.
+        self.assertNotIn("\\'", command)
         # Extract only the Python invocation, without the log redirections.
         invocation = command[command.index('python /opt/'):command.index("echo '[score] Variant effects complete'")]
         words = shlex.split(invocation.replace('\\\n', ''))

@@ -92,6 +92,27 @@ class PipelineTests(unittest.TestCase):
             with self.subTest(variants=variants), self.assertRaises(ValueError):
                 merge_scores([one, two], self.root / 'long.tsv', self.root / 'wide.tsv')
 
+    def test_scorer_ids_preserve_null_and_numeric_identifiers(self):
+        from io_utils import write_scorer_variants, restore_score_file
+        original = [dict(chr='chr1', pos='50', allele1='A', allele2='T', variant_id=ident)
+                    for ident in ['null', 'NA', '001']]
+        mapping = write_scorer_variants(original, self.root / 'scorer.tsv')
+        tokens = list(mapping)
+        self.assertEqual(len(set(tokens)), 3)
+        scored = self.root / 'scored.tsv'
+        with scored.open('w') as stream:
+            writer = csv.DictWriter(stream, fieldnames=['chr', 'pos', 'allele1', 'allele2', 'variant_id', 'logfc'], delimiter='\t')
+            writer.writeheader()
+            for token in tokens:
+                writer.writerow(dict(original[0], variant_id=token, logfc='0.5'))
+        restore_score_file(scored, mapping, require_all=True)
+        with scored.open() as stream:
+            rows = list(csv.DictReader(stream, delimiter='\t'))
+        self.assertEqual([row['variant_id'] for row in rows], ['null', 'NA', '001'])
+        self.assertEqual([row['logfc'] for row in rows], ['0.5'] * 3)
+        with self.assertRaisesRegex(ValueError, 'identity'):
+            restore_score_file(scored, mapping, require_all=True)
+
     def test_score_cli_rejects_cloud_model_before_tensorflow(self):
         result = subprocess.run([sys.executable, str(ROOT / 'scripts/score_variants.py'),
             '--variants', 'gs://b/v.tsv', '--model', 'gs://b/m.h5', '--peaks', 'gs://b/p.bed',

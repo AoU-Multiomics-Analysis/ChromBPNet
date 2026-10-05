@@ -75,6 +75,8 @@ The output includes these upstream metrics:
   relative to the supplied peaks.
 - The upstream products of these metrics, including effect and prioritization scores.
 
+The wrapper uses temporary internal IDs during scoring. It restores original IDs,
+including `NA` and numeric-looking IDs, in main and shuffled score files.
 Each per-model TSV adds `model_id` and `cell_type`. The workflow also returns peak
 scores, run metadata, and logs. `merged_effects` has one row per variant per model.
 `wide_effects` has one row per variant, with columns such as `CD4_fold0.logfc`

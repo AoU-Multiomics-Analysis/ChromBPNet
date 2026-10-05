@@ -26,14 +26,14 @@ def main():
         sizes = root / 'chrom.sizes'
         sizes.write_text('chr1\t2000\n')
         variants = root / 'variants.tsv'
-        variants.write_text('chr1\t801\tA\tT\tv1\nchr1\t1001\tA\tA\tnull\nchr1\t1201\tAC\tA\tdeletion\n')
+        variants.write_text('chr1\t801\tA\tC\t001\nchr1\t1001\tA\tA\tnull\nchr1\t1201\tAC\tA\tdeletion\n')
         peaks = root / 'peaks.bed'
         peaks.write_text('chr1\t750\t850\nchr1\t950\t1050\n')
         seq = tf.keras.Input(shape=(100, 4))
-        profile = tf.keras.layers.Conv1D(1, 1, use_bias=False, kernel_initializer=tf.keras.initializers.Constant(np.array([1., 2., 3., 4.]).reshape(1, 4, 1)))(seq)
+        profile = tf.keras.layers.Conv1D(1, 1, use_bias=False, kernel_initializer=tf.keras.initializers.Constant([[[1.], [2.], [3.], [8.]]]))(seq)
         profile = tf.keras.layers.Reshape((100,))(profile)
         counts = tf.keras.layers.GlobalAveragePooling1D()(seq)
-        counts = tf.keras.layers.Dense(1, kernel_initializer='ones', bias_initializer='zeros')(counts)
+        counts = tf.keras.layers.Dense(1, kernel_initializer=tf.keras.initializers.Constant([[1.], [2.], [3.], [8.]]), bias_initializer='zeros')(counts)
         model = tf.keras.Model(seq, [profile, counts])
         model_path = root / 'chrombpnet_nobias.h5'
         model.save(model_path, include_optimizer=False)

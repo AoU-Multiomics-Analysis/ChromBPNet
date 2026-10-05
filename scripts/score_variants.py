@@ -7,7 +7,7 @@ import runpy
 import sys
 from pathlib import Path
 from io_utils import (CORE_METRICS, VARIANT_FIELDS, check_label, read_chrom_sizes,
-                      read_variants, readable, validate_reference)
+                      read_variants, readable, validate_reference, write_scorer_variants, restore_score_file)
 
 
 def main():
@@ -75,7 +75,9 @@ def main():
     del model
     tf.keras.backend.clear_session()
     prefix = str(output / 'scored')
-    sys.argv = [str(vendor / 'variant_scoring.py'), '--list', str(args.variants),
+    scorer_variants = output / 'scorer_input.tsv'
+    id_mapping = write_scorer_variants(variants, scorer_variants)
+    sys.argv = [str(vendor / 'variant_scoring.py'), '--list', str(scorer_variants),
                 '--model', str(args.model), '--peaks', str(args.peaks), '--genome', str(local_genome),
                 '--chrom_sizes', str(args.chrom_sizes), '--out_prefix', prefix,
                 '--schema', 'chrombpnet', '--batch_size', str(args.batch_size),
@@ -84,6 +86,9 @@ def main():
         sys.argv += ['--max_peaks', str(args.max_peaks)]
     print(f'[score] Start model={args.model_id}, cell_type={args.cell_type}, GPUs={len(gpus)}', flush=True)
     runpy.run_path(str(vendor / 'variant_scoring.py'), run_name='__main__')
+    restore_score_file(prefix + '.variant_scores.tsv', id_mapping, require_all=True)
+    if args.num_shuf > 0:
+        restore_score_file(prefix + '.variant_scores.shuffled.tsv', id_mapping)
     with open(prefix + '.variant_scores.tsv') as stream:
         reader = csv.DictReader(stream, delimiter='\t')
         fields = reader.fieldnames
