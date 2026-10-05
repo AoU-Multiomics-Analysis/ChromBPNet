@@ -4,10 +4,21 @@ import csv
 import json
 import os
 import runpy
+import shutil
 import sys
 from pathlib import Path
 from io_utils import (CORE_METRICS, VARIANT_FIELDS, check_label, read_chrom_sizes,
                       read_variants, readable, validate_reference, write_scorer_variants, restore_score_file)
+
+
+def stage_reference(genome, index, output):
+    """Stage a writable index without changing Cromwell's localized inputs."""
+    local_genome = output / 'reference.fa'
+    local_genome.symlink_to(genome)
+    # copyfile gives the index a current timestamp. Parallel cloud downloads can
+    # give the small input index an older timestamp than the large FASTA.
+    shutil.copyfile(index, output / 'reference.fa.fai')
+    return local_genome
 
 
 def main():
@@ -30,9 +41,7 @@ def main():
     sizes = read_chrom_sizes(args.chrom_sizes)
     output = Path(args.output_dir).resolve()
     output.mkdir(parents=True, exist_ok=True)
-    local_genome = output / 'reference.fa'
-    local_genome.symlink_to(args.genome)
-    (output / 'reference.fa.fai').symlink_to(args.genome_index)
+    local_genome = stage_reference(args.genome, args.genome_index, output)
     os.environ.setdefault('TF_FORCE_GPU_ALLOW_GROWTH', 'true')
     import tensorflow as tf
     from pyfaidx import Fasta

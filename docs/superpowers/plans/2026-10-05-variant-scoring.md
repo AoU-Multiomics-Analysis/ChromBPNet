@@ -42,9 +42,13 @@ Interfaces: typed ModelSpec manifest; localized score File array for merge.
 
 ## Verification record
 
-Fourteen unit tests passed. WDL syntax and workflow-scope write checks passed.
+Fifteen unit tests passed. WDL syntax and workflow-scope write checks passed.
 An independent review found two input-handling issues. Both were fixed with
 regression tests: Java-compatible shell quoting, and preservation of reserved
 or numeric-looking variant IDs. The real scorer CPU smoke test passed in an
 existing local TensorFlow environment. The Linux image will be checked in Actions.
 Terra and L4 execution have not been tested.
+
+A task-local FASTA index copy also protects localized inputs when parallel
+downloads make the index timestamp older than the FASTA. A regression test
+checks that updates cannot change the input index.

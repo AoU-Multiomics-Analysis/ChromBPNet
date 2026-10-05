@@ -92,6 +92,23 @@ class PipelineTests(unittest.TestCase):
             with self.subTest(variants=variants), self.assertRaises(ValueError):
                 merge_scores([one, two], self.root / 'long.tsv', self.root / 'wide.tsv')
 
+    def test_reference_index_staging_does_not_modify_localized_input(self):
+        import os
+        from score_variants import stage_reference
+        genome = self.root / 'input.fa'
+        index = self.root / 'input.fa.fai'
+        index.write_text('original-index')
+        os.utime(index, (1, 1))
+        genome.write_text('>chr1\nAAAA\n')
+        output = self.root / 'effects'
+        output.mkdir()
+        local_genome = stage_reference(genome, index, output)
+        local_index = Path(str(local_genome) + '.fai')
+        self.assertGreaterEqual(local_index.stat().st_mtime, genome.stat().st_mtime)
+        local_index.write_text('updated-index')
+        self.assertEqual(index.read_text(), 'original-index')
+        self.assertEqual(local_genome.read_text(), genome.read_text())
+
     def test_scorer_ids_preserve_null_and_numeric_identifiers(self):
         from io_utils import write_scorer_variants, restore_score_file
         original = [dict(chr='chr1', pos='50', allele1='A', allele2='T', variant_id=ident)
