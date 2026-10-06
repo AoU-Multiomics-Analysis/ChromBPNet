@@ -1,5 +1,6 @@
 """CPU integration test for the Linux image; no real models or cloud jobs."""
 import csv
+import gzip
 import json
 import os
 import subprocess
@@ -23,6 +24,9 @@ def main():
         genome.write_text('>chr1\n' + 'ACGT' * 500 + '\n')
         with Fasta(str(genome)):
             pass
+        compressed_genome = root / "reference ' $(literal).fa.gz"
+        with genome.open('rb') as source, gzip.open(compressed_genome, 'wb') as target:
+            target.write(source.read())
         sizes = root / 'chrom.sizes'
         sizes.write_text('chr1\t2000\n')
         variants = root / 'variants.tsv'
@@ -39,12 +43,21 @@ def main():
         model.save(model_path, include_optimizer=False)
         score_paths = []
         scripts = Path('/opt/chrombpnet/scripts')
+        manifest = root / 'models.tsv'
+        manifest.write_text('model_id\tcell_type\tmodel\tpeaks\n' +
+            f'cd4\tCD4 T cell\t{model_path}\t{peaks}\n' + f'nk\tNK\t{model_path}\t{peaks}\n')
+        subprocess.run([sys.executable, str(scripts / 'validate_manifest.py'), '--manifest', str(manifest),
+            '--output', str(root / 'validated.txt'), '--rows-output', str(root / 'normalized.tsv')], check=True)
+        assert (root / 'validated.txt').read_text() == '2\n'
+        reference_rows = None
         for ident, cell in [('cd4', 'CD4 T cell'), ('nk', 'NK')]:
             output = root / ident
             command = [sys.executable, str(scripts / 'score_variants.py'), '--allow-cpu',
                 '--variants', str(variants), '--model', str(model_path), '--peaks', str(peaks),
-                '--genome', str(genome), '--genome-index', str(genome) + '.fai', '--chrom-sizes', str(sizes),
+                '--genome', str(genome if ident == 'cd4' else compressed_genome), '--chrom-sizes', str(sizes),
                 '--model-id', ident, '--cell-type', cell, '--output-dir', str(output), '--threads', '1', '--batch-size', '2']
+            if ident == 'cd4':
+                command += ['--genome-index', str(genome) + '.fai']
             # Exercise the optional peak and shuffle arguments on both models.
             command += ['--max-peaks', '2', '--num-shuf', '2']
             subprocess.run(command, check=True)
@@ -53,6 +66,12 @@ def main():
             with path.open() as stream:
                 rows = list(csv.DictReader(stream, delimiter='\t'))
             assert len(rows) == 3
+            if reference_rows is not None:
+                assert [row['variant_id'] for row in rows] == [row['variant_id'] for row in reference_rows]
+                for field in ['logfc', 'jsd', 'active_allele_quantile']:
+                    np.testing.assert_allclose([float(row[field]) for row in rows],
+                                               [float(row[field]) for row in reference_rows])
+            reference_rows = rows
             null = next(row for row in rows if row['variant_id'] == 'null')
             assert abs(float(null['logfc'])) < 1e-6
             assert abs(float(null['jsd'])) < 1e-6
@@ -71,7 +90,7 @@ def main():
         command[command.index('--output-dir') + 1] = str(root / 'gpu_required')
         result = subprocess.run(command, capture_output=True, text=True)
         assert result.returncode != 0 and 'GPU is required' in result.stderr
-        print('PASS: real scorer, peaks, indels, shuffles, null effects, merge, and GPU requirement')
+        print('PASS: TSV manifest, plain and gzip FASTA, optional index, real scorer, merge, and GPU requirement')
 
 
 if __name__ == '__main__':

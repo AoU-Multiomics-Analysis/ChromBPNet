@@ -109,6 +109,72 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(index.read_text(), 'original-index')
         self.assertEqual(local_genome.read_text(), genome.read_text())
 
+    def test_gzip_reference_is_decompressed_without_changing_input(self):
+        import gzip
+        from score_variants import stage_reference
+        genome = self.root / "input ' $(literal).fa.gz"
+        content = b'>chr1\nAAAA\n'
+        with gzip.open(genome, 'wb') as stream:
+            stream.write(content)
+        original = genome.read_bytes()
+        index = self.root / 'input.fa.fai'
+        index.write_text('chr1\t4\t6\t4\t5\n')
+        output = self.root / 'effects'
+        output.mkdir()
+        local_genome = stage_reference(genome, index, output)
+        self.assertEqual(local_genome.read_bytes(), content)
+        self.assertEqual(genome.read_bytes(), original)
+        self.assertFalse(local_genome.is_symlink())
+
+    def test_corrupt_gzip_reference_fails(self):
+        from score_variants import stage_reference
+        genome = self.root / 'broken.fa.gz'
+        genome.write_bytes(b'\x1f\x8bgarbage')
+        index = self.root / 'input.fa.fai'
+        index.write_text('index')
+        output = self.root / 'effects'
+        output.mkdir()
+        with self.assertRaisesRegex(ValueError, 'compressed FASTA'):
+            stage_reference(genome, index, output)
+
+    def test_bgzf_reference_reads_all_blocks(self):
+        import struct
+        import zlib
+        from score_variants import stage_reference
+
+        def block(data):
+            compressor = zlib.compressobj(wbits=-15)
+            payload = compressor.compress(data) + compressor.flush()
+            size = 18 + len(payload) + 8
+            header = b'\x1f\x8b\x08\x04' + struct.pack('<LBBH', 0, 0, 255, 6)
+            header += b'BC' + struct.pack('<HH', 2, size - 1)
+            return header + payload + struct.pack('<LL', zlib.crc32(data), len(data))
+
+        content = b'>chr1\nAAAA\nCCCC\n'
+        genome = self.root / 'input.fa.gz'
+        genome.write_bytes(block(content[:9]) + block(content[9:]) + block(b''))
+        index = self.root / 'input.fa.fai'
+        index.write_text('chr1\t8\t6\t4\t5\n')
+        output = self.root / 'effects'
+        output.mkdir()
+        self.assertEqual(stage_reference(genome, index, output).read_bytes(), content)
+
+    def test_tsv_manifest_preserves_cloud_metadata_and_rejects_bad_rows(self):
+        from validate_manifest import read_manifest, write_manifest_rows
+        manifest = self.root / 'models.tsv'
+        header = 'model_id\tcell_type\tmodel\tpeaks\n'
+        manifest.write_text(header + "cd4\tCD4 T cell\tgs://b/a ' model.h5\tgs://b/peaks.bed\n")
+        rows = read_manifest(manifest)
+        self.assertEqual(rows[0]['model'], "gs://b/a ' model.h5")
+        output = self.root / 'normalized.tsv'
+        write_manifest_rows(rows, output)
+        self.assertEqual(output.read_text(), manifest.read_text().split('\n', 1)[1])
+        for content in [header, header + 'cd4\tCD4\tgs://b/m.h5\n',
+                        'cell_type\tmodel_id\tmodel\tpeaks\nCD4\tcd4\tgs://b/m.h5\tgs://b/p.bed\n']:
+            manifest.write_text(content)
+            with self.subTest(content=content), self.assertRaises(ValueError):
+                read_manifest(manifest)
+
     def test_scorer_ids_preserve_null_and_numeric_identifiers(self):
         from io_utils import write_scorer_variants, restore_score_file
         original = [dict(chr='chr1', pos='50', allele1='A', allele2='T', variant_id=ident)

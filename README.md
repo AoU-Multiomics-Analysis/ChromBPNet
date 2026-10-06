@@ -12,10 +12,14 @@ It runs one GPU task per model and merges the score files in a CPU task.
    `allele1` must match the reference. Use `-` for an empty allele in an indel.
    Use chromosome names with the `chr` prefix. Names must match the FASTA,
    chromosome sizes, and peaks. The scorer does not change genome builds.
-2. Supply an uncompressed reference FASTA, its matching `.fai` index, and a
-   headerless, two-column chromosome-size TSV. All three are explicit `File` inputs.
-3. Supply a JSON model manifest. See [examples/models.json](examples/models.json).
-   Each row has `model_id`, `cell_type`, `model`, and `peaks`. Model IDs must be
+2. Supply a plain or gzip-compressed reference FASTA and a headerless,
+   two-column chromosome-size TSV. The `genome_index` input is optional.
+   If supplied, it must index the **uncompressed FASTA**, even when the FASTA
+   input is compressed. Otherwise, each scoring task creates its own index.
+   Do not supply a compressed-file index or a `.gzi` file.
+3. Supply a TSV model manifest. See [examples/models.tsv](examples/models.tsv).
+   The first line must contain `model_id`, `cell_type`, `model`, and `peaks`,
+   in that order, separated by tabs. Model IDs must be
    unique and contain only letters, digits, underscores, or hyphens.
    Use a separate row and model ID for each fold or replicate.
 4. Use standard, bias-corrected `chrombpnet_nobias.h5` models with one sequence
@@ -26,10 +30,19 @@ It runs one GPU task per model and merges the score files in a CPU task.
    Ten-column narrowPeak files must have valid summit offsets; `-1` is rejected.
 6. Set `docker_image` to the digest of the tested Linux image.
 
-The JSON manifest is structured model data. It is not a script argument wrapper.
-The workflow converts each row to a `ModelSpec`. The `model` and `peaks` members
-have WDL `File` types. Cromwell can thus localize them before scoring. A metadata
-validation task checks the manifest without opening the model or peak URIs.
+Manifest fields are literal text. Do not add CSV-style quotes around them.
+Use full cloud URIs for model and peak files in Terra. For example:
+
+```tsv
+model_id	cell_type	model	peaks
+CD4_fold0	CD4 T cell	gs://bucket/cd4/model.h5	gs://bucket/cd4/peaks.bed
+NK_fold0	NK	gs://bucket/nk/model.h5	gs://bucket/nk/peaks.bed
+```
+
+A metadata validation task checks the manifest without opening the model or
+peak URIs. It returns a headerless TSV. The workflow reads that file and converts
+each row to a `ModelSpec`. The `model` and `peaks` members have WDL `File` types.
+Cromwell can thus localize them before scoring.
 Each scoring task receives files as explicit `File` inputs and named CLI arguments.
 The merge file list is created during command rendering, after localization.
 
@@ -53,8 +66,10 @@ zones: ["us-central1-a", "us-central1-b", "us-central1-c", "us-central1-f"]
 The default memory is 64 GB. The default task disk is 100 GB SSD. The boot disk
 is 50 GB. `num_preempt` defaults to zero. The g2-standard-16 machine has one L4
 GPU, so the GPU count is fixed at one. The script fails if TensorFlow cannot
-find a GPU. Select enough task disk for the reference, localized model, peaks,
-and outputs. The manifest and merge tasks do not request GPUs.
+find a GPU. Compressed FASTA files reduce the data transferred during localization.
+Each scoring task decompresses its localized FASTA before scoring. Select enough
+task disk for both the compressed and uncompressed reference, its index, the
+localized model, peaks, and outputs. The manifest and merge tasks do not request GPUs.
 
 ## Scores and outputs
 
@@ -114,8 +129,10 @@ accessible registry and use that registry's digest.
 
 The image smoke test creates a synthetic HDF5 model. It runs the actual scorer
 on SNPs, an indel, peaks, shuffled sequences, and an identical-allele control.
-It checks both merge outputs and the default GPU requirement. This test runs
-on CPU because the GitHub runner has no GPU.
+It checks the TSV manifest, both merge outputs, and the default GPU requirement.
+It compares scores from a plain FASTA with a supplied index against a compressed
+FASTA with a task-created index. This test runs on CPU because the GitHub runner
+has no GPU.
 
 Run the other checks with Python 3.11 and `miniwdl==1.14.2`:
 
@@ -132,3 +149,16 @@ Miniwdl can warn that `predefinedMachineType` is unknown; Cromwell uses that fie
 **The complete workflow has not been tested on Terra.** Syntax checks and the
 CPU image smoke test do not validate Terra localization or L4 GPU execution.
 No Terra or other cloud jobs have been submitted.
+
+## Dockstore
+
+[.dockstore.yml](.dockstore.yml) uses Dockstore schema 1.2. It registers
+`chrombpnet-variant-scoring` from the WDL, README, and example input files.
+The configuration requests public publication with `publish: true` and limits
+registration to the `main` branch.
+
+Enable the [Dockstore GitHub App](https://docs.dockstore.org/en/stable/getting-started/github-apps/github-apps.html)
+for this repository, then merge the configuration into `main`. Dockstore uses
+the app connection to register and publish the workflow. Adding this file alone
+does not confirm publication. Replace the example input URIs and image digest
+before a Terra run.

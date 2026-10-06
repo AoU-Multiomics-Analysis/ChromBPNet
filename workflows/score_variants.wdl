@@ -12,7 +12,7 @@ workflow ChromBPNetVariantScoring {
         File variants
         File model_manifest
         File genome
-        File genome_index
+        File? genome_index
         File chrom_sizes
         String docker_image
         Int batch_size = 128
@@ -24,17 +24,22 @@ workflow ChromBPNetVariantScoring {
         Int num_preempt = 0
     }
 
-    # This JSON file is actual structured manifest data, not a task argument wrapper.
-    # File members remain typed, so Cromwell localizes each model and peaks file.
-    Array[ModelSpec] models = read_json(model_manifest)
-
     call ValidateManifest {
         input:
             manifest = model_manifest,
             docker_image = docker_image
     }
 
-    scatter (entry in models) {
+    Array[Array[String]] manifest_rows = read_tsv(ValidateManifest.rows)
+
+    scatter (row in manifest_rows) {
+        # Coerce URI metadata to typed File fields before task localization.
+        ModelSpec entry = object {
+            model_id: row[0],
+            cell_type: row[1],
+            model: row[2],
+            peaks: row[3]
+        }
         call ScoreVariants {
             input:
                 model_id = entry.model_id,
@@ -86,11 +91,13 @@ task ValidateManifest {
         echo '[manifest] Start input checks'
         python /opt/chrombpnet/scripts/validate_manifest.py \
             --manifest '~{sub(manifest, "'", "'\"'\"'")}' \
-            --output manifest.validated.txt
+            --output manifest.validated.txt \
+            --rows-output models.normalized.tsv
         echo '[manifest] Input checks complete'
     >>>
     output {
         File validation = 'manifest.validated.txt'
+        File rows = 'models.normalized.tsv'
     }
     runtime {
         docker: docker_image
@@ -110,7 +117,7 @@ task ScoreVariants {
         File peaks
         File variants
         File genome
-        File genome_index
+        File? genome_index
         File chrom_sizes
         File manifest_validation
         String docker_image
@@ -136,7 +143,7 @@ task ScoreVariants {
             --peaks '~{sub(peaks, "'", "'\"'\"'")}' \
             --variants '~{sub(variants, "'", "'\"'\"'")}' \
             --genome '~{sub(genome, "'", "'\"'\"'")}' \
-            --genome-index '~{sub(genome_index, "'", "'\"'\"'")}' \
+            ~{if defined(genome_index) then "--genome-index '" + sub(select_first([genome_index]), "'", "'\"'\"'") + "'" else ""} \
             --chrom-sizes '~{sub(chrom_sizes, "'", "'\"'\"'")}' \
             --batch-size ~{batch_size} \
             --num-shuf ~{num_shuf} \
