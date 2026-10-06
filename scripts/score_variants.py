@@ -1,30 +1,52 @@
 """Run the pinned official scorer with localized inputs and strict output checks."""
 import argparse
 import csv
+import gzip
 import json
 import os
 import runpy
 import shutil
 import sys
+import zlib
 from pathlib import Path
 from io_utils import (CORE_METRICS, VARIANT_FIELDS, check_label, read_chrom_sizes,
                       read_variants, readable, validate_reference, write_scorer_variants, restore_score_file)
 
 
 def stage_reference(genome, index, output):
-    """Stage a writable index without changing Cromwell's localized inputs."""
+    """Decompress a localized FASTA and stage or build its task-local index."""
     local_genome = output / 'reference.fa'
-    local_genome.symlink_to(genome)
-    # copyfile gives the index a current timestamp. Parallel cloud downloads can
-    # give the small input index an older timestamp than the large FASTA.
-    shutil.copyfile(index, output / 'reference.fa.fai')
+    with genome.open('rb') as stream:
+        compressed = stream.read(2) == b'\x1f\x8b'
+    if compressed:
+        print('[reference] Decompress localized FASTA', flush=True)
+        temporary = output / 'reference.fa.partial'
+        try:
+            with gzip.open(genome, 'rb') as source, temporary.open('wb') as target:
+                shutil.copyfileobj(source, target, length=1024 * 1024)
+            temporary.replace(local_genome)
+        except (gzip.BadGzipFile, EOFError, zlib.error) as error:
+            temporary.unlink(missing_ok=True)
+            raise ValueError(f'Invalid compressed FASTA: {genome}') from error
+    else:
+        local_genome.symlink_to(genome)
+    if index is not None:
+        print('[reference] Copy supplied uncompressed FASTA index', flush=True)
+        # A current timestamp prevents a rebuild caused by download order.
+        shutil.copyfile(index, output / 'reference.fa.fai')
+    else:
+        print('[reference] Create task-local FASTA index', flush=True)
+        from pyfaidx import Fasta
+        with Fasta(str(local_genome)):
+            pass
     return local_genome
 
 
 def main():
     parser = argparse.ArgumentParser()
-    for name in ['variants', 'model', 'peaks', 'genome', 'genome-index', 'chrom-sizes', 'model-id', 'cell-type', 'output-dir']:
+    for name in ['variants', 'model', 'peaks', 'genome', 'chrom-sizes', 'model-id', 'cell-type', 'output-dir']:
         parser.add_argument('--' + name, required=True)
+    parser.add_argument('--genome-index', help='Optional index for the uncompressed FASTA')
     parser.add_argument('--batch-size', type=int, default=128)
     parser.add_argument('--num-shuf', type=int, default=0)
     parser.add_argument('--max-peaks', type=int)
@@ -33,8 +55,10 @@ def main():
     parser.add_argument('--allow-cpu', action='store_true', help='For the CI smoke test only')
     args = parser.parse_args()
     check_label(args.model_id, args.cell_type)
-    for name in ['variants', 'model', 'peaks', 'genome', 'genome_index', 'chrom_sizes']:
+    for name in ['variants', 'model', 'peaks', 'genome', 'chrom_sizes']:
         setattr(args, name, readable(getattr(args, name)).resolve())
+    if args.genome_index is not None:
+        args.genome_index = readable(args.genome_index).resolve()
     if args.batch_size < 1 or args.num_shuf < 0 or args.threads < 1 or (args.max_peaks is not None and args.max_peaks < 1):
         raise ValueError('Batch size, thread count, and max peaks must be positive; num shuf must be nonnegative')
     variants = read_variants(args.variants)

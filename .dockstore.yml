@@ -1,0 +1,16 @@
+version: 1.2
+workflows:
+  - name: chrombpnet-variant-scoring
+    subclass: WDL
+    primaryDescriptorPath: /workflows/score_variants.wdl
+    testParameterFiles:
+      - /examples/inputs.json
+    readMePath: /README.md
+    otherFiles:
+      - /examples/models.tsv
+      - /examples/variants.tsv
+    publish: true
+    filters:
+      branches:
+        - main
+    topic: GPU ChromBPNet variant scoring across cell-type models with merged chromatin effect tables.

@@ -1,0 +1,3 @@
+model_id	cell_type	model	peaks
+CD4_fold0	CD4 T cell	gs://YOUR_BUCKET/models/CD4/fold0/chrombpnet_nobias.h5	gs://YOUR_BUCKET/peaks/CD4.narrowPeak
+NK_fold0	NK	gs://YOUR_BUCKET/models/NK/fold0/chrombpnet_nobias.h5	gs://YOUR_BUCKET/peaks/NK.narrowPeak

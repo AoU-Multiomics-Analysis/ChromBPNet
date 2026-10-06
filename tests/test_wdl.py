@@ -1,4 +1,3 @@
-import json
 import shlex
 import tempfile
 import unittest
@@ -37,14 +36,18 @@ class WDLTests(unittest.TestCase):
 
     def test_manifest_read_retains_file_types(self):
         with tempfile.TemporaryDirectory() as tmp:
-            manifest = Path(tmp) / 'models.json'
-            manifest.write_text(json.dumps([dict(model_id='cd4', cell_type='CD4', model='gs://b/m.h5', peaks='gs://b/p.bed')]))
-            env = WDL.Env.Bindings().bind('model_manifest', WDL.Value.File(str(manifest)))
-            decl = next(item for item in self.doc.workflow.body if isinstance(item, WDL.Tree.Decl) and item.name == 'models')
-            value = decl.expr.eval(env, LocalStdLib('1.0', tmp)).coerce(decl.type)
+            manifest = Path(tmp) / 'models.normalized.tsv'
+            manifest.write_text("cd4\tCD4 T cell\tgs://b/a ' model.h5\tgs://b/p.bed\n")
+            env = WDL.Env.Bindings().bind('ValidateManifest.rows', WDL.Value.File(str(manifest)))
+            decl = next(item for item in self.doc.workflow.body if isinstance(item, WDL.Tree.Decl) and item.name == 'manifest_rows')
+            rows = decl.expr.eval(env, LocalStdLib('1.0', tmp)).coerce(decl.type)
+            scatter = next(item for item in self.doc.workflow.body if isinstance(item, WDL.Tree.Scatter))
+            entry = next(item for item in scatter.body if isinstance(item, WDL.Tree.Decl) and item.name == 'entry')
+            value = entry.expr.eval(WDL.Env.Bindings().bind('row', rows.value[0]), LocalStdLib('1.0', tmp)).coerce(entry.type)
             for member in ['model', 'peaks']:
-                self.assertIsInstance(value.value[0].value[member], WDL.Value.File)
-                self.assertTrue(value.value[0].value[member].value.startswith('gs://'))
+                self.assertIsInstance(value.value[member], WDL.Value.File)
+                self.assertTrue(value.value[member].value.startswith('gs://'))
+            self.assertEqual(value.value['model'].value, "gs://b/a ' model.h5")
 
     def test_score_command_uses_localized_paths_and_safe_shell_quoting(self):
         task = self.task('ScoreVariants')
@@ -65,6 +68,10 @@ class WDLTests(unittest.TestCase):
         env = WDL.values_from_json(dict(args, max_peaks=100), task.available_inputs, task.required_inputs)
         command = task.command.eval(env, LocalStdLib('1.0')).value
         self.assertIn('--max-peaks 100', command)
+        env = WDL.values_from_json(dict(args, genome_index=None), task.available_inputs, task.required_inputs)
+        command = task.command.eval(env, LocalStdLib('1.0')).value
+        self.assertNotIn('--genome-index', command)
+
 
     def test_merge_file_list_uses_command_time_localized_files(self):
         task = self.task('MergeVariantEffects')
