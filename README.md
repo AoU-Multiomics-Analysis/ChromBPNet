@@ -51,6 +51,49 @@ and image digest. Register the WDL in Terra, then use the input JSON for your
 workspace submission. Ensure that the workspace can read all inputs and the image.
 The example variant is a format example; check its REF against your selected genome.
 
+## Download GM12878 ATAC inputs
+
+[tools/prepare_gm12878.py](tools/prepare_gm12878.py) prepares the five-fold ATAC
+model set [ENCSR389HIH](https://www.encodeproject.org/annotations/ENCSR389HIH/),
+trained on experiment ENCSR637XSC in GRCh38. It uses Python 3.9 or later with no
+additional Python packages. Install and authenticate `gsutil` first. Your account
+must have write access to the destination bucket.
+
+```sh
+python3 tools/prepare_gm12878.py \
+  --output-dir ./GM12878_ATAC \
+  --gcs-prefix gs://your-bucket/chrombpnet/GM12878_ATAC
+```
+
+The script downloads the ENCODE model archive `ENCFF142IOR` and region archive
+`ENCFF971WEQ`. It verifies their published MD5 checksums. It selects only the five
+bias-corrected HDF5 models and decompresses the full input peak set from the
+region archive. The peak file keeps its ten narrowPeak columns and summit offsets.
+
+The script also downloads the UCSC `hg38.fa.gz`, verifies its published checksum,
+and creates matching chromosome sizes from the compressed FASTA. To use your
+existing hg38 reference instead, add `--skip-reference`.
+
+Files remain in the local directory. The script uploads each prepared data file
+with `gsutil cp`, then creates and uploads `models.tsv`. The manifest has the
+workflow's four columns and one row per fold. All five rows use `GM12878` as the
+cell type and the full input peak set. Model IDs include the assay, experiment,
+and fold. The script retains source URLs and checksums in local `sources.json`.
+It reuses downloaded archives and FASTA files when their checksums match.
+Uploads replace files at the selected destination paths.
+
+Use these workflow inputs after the script succeeds:
+
+| WDL input | GCS path |
+| --- | --- |
+| `model_manifest` | `gs://your-bucket/chrombpnet/GM12878_ATAC/models.tsv` |
+| `genome` | `gs://your-bucket/chrombpnet/GM12878_ATAC/reference/hg38.fa.gz` |
+| `chrom_sizes` | `gs://your-bucket/chrombpnet/GM12878_ATAC/reference/hg38.chrom.sizes` |
+
+Leave `genome_index` unset. Supply your own variant list and tested scoring image
+digest. If you use `--skip-reference`, also supply your own genome and chromosome
+sizes. These uploads do not submit the WDL or start a Terra job.
+
 ## GPU and storage
 
 The scoring runtime requests:
