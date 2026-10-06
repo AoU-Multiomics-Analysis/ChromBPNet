@@ -183,9 +183,12 @@ task MergeVariantEffects {
         set -euo pipefail
         exec > >(tee merge.log) 2>&1
         echo '[merge] Start cell-type merge'
-        # Evaluate this list at command rendering, after File localization.
+        # Create the list in the execution directory from localized File inputs.
+        # A write_lines result inside a String expression can remain a cloud URI.
+        printf '%s\n' '~{sub(sep("\n", score_files), "'", "'\"'\"'")}' > score_files.list
+        echo '[merge] Created task-local score file list'
         python /opt/chrombpnet/scripts/merge_scores.py \
-            --score-files '~{sub(write_lines(score_files), "'", "'\"'\"'")}' \
+            --score-files score_files.list \
             --long-output variant_effects.all_models.tsv \
             --wide-output variant_effects.wide.tsv
         echo '[merge] Cell-type merge complete'

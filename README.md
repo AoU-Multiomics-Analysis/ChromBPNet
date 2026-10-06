@@ -44,7 +44,9 @@ peak URIs. It returns a headerless TSV. The workflow reads that file and convert
 each row to a `ModelSpec`. The `model` and `peaks` members have WDL `File` types.
 Cromwell can thus localize them before scoring.
 Each scoring task receives files as explicit `File` inputs and named CLI arguments.
-The merge file list is created during command rendering, after localization.
+The merge command writes its file list in the task execution directory, using
+the localized score-file paths. It does not pass an engine-generated file URI
+to the merge script.
 
 Copy [examples/inputs.json](examples/inputs.json) and replace the example URIs
 and image digest. Register the WDL in Terra, then use the input JSON for your
@@ -187,11 +189,19 @@ python tests/check_wdl.py workflows/score_variants.wdl
 
 Tests check File types in the parsed manifest, command-time localization,
 shell quoting, optional CLI arguments, and workflow-scope file writes.
+The merge regression test starts with cloud File inputs, applies their local
+path mapping, and executes the rendered command with the actual merge script.
+It also models the cloud URI that Terra can return for `write_lines`. The static
+check rejects WDL file-writing functions inside task command expressions;
+commands must create required local files directly.
 Miniwdl can warn that `predefinedMachineType` is unknown; Cromwell uses that field.
 
-**The complete workflow has not been tested on Terra.** Syntax checks and the
-CPU image smoke test do not validate Terra localization or L4 GPU execution.
-No Terra or other cloud jobs have been submitted.
+**The complete workflow has not been verified successfully on Terra.** A reported
+Terra run reached the merge task but failed because its generated file-list path
+remained a cloud URI. The revised command creates that list locally. The fix
+passed the command regression test, but has not been rerun on Terra. Syntax checks
+and the CPU image smoke test do not validate L4 GPU execution. No Terra or other
+analysis jobs were submitted for this fix.
 
 ## Dockstore
 
