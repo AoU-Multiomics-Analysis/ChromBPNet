@@ -1,9 +1,12 @@
+import csv
 import shlex
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 import WDL
-from check_wdl import workflow_writes
+from check_wdl import command_writes, workflow_writes
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -14,6 +17,12 @@ class LocalStdLib(WDL.StdLib.Base):
 
     def _virtualize_filename(self, filename):
         return filename
+
+
+class CloudGeneratedFileStdLib(LocalStdLib):
+    """Model the cloud path returned by Terra for an engine-generated file."""
+    def _virtualize_filename(self, filename):
+        return 'gs://test-bucket/call-MergeVariantEffects/' + Path(filename).name
 
 
 class WDLTests(unittest.TestCase):
@@ -30,6 +39,18 @@ class WDLTests(unittest.TestCase):
             path = Path(tmp) / 'bad.wdl'
             path.write_text(source)
             self.assertIn(('write_lines', 2), workflow_writes(WDL.load(str(path))))
+
+    def test_commands_have_no_engine_generated_file_writes(self):
+        self.assertEqual(command_writes(self.doc), [])
+
+    def test_static_check_catches_command_writes_inside_string_functions(self):
+        source = '''version 1.0
+task bad { input { Array[File] xs } command <<< cat '~{sub(write_lines(xs), "x", "y")}' >>> }
+'''
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'bad.wdl'
+            path.write_text(source)
+            self.assertIn(('write_lines', 2), command_writes(WDL.load(str(path))))
 
     def task(self, name):
         return next(task for task in self.doc.tasks if task.name == name)
@@ -73,15 +94,46 @@ class WDLTests(unittest.TestCase):
         self.assertNotIn('--genome-index', command)
 
 
-    def test_merge_file_list_uses_command_time_localized_files(self):
+    def test_merge_executes_with_cloud_inputs_and_cloud_generated_file_paths(self):
         task = self.task('MergeVariantEffects')
         with tempfile.TemporaryDirectory() as tmp:
-            paths = ['/localized/cd4 scores.tsv', "/localized/nk ' scores.tsv"]
-            env = WDL.values_from_json(dict(score_files=paths, docker_image='test'), task.available_inputs, task.required_inputs)
-            command = task.command.eval(env, LocalStdLib('1.0', tmp)).value
-            invocation = command[command.index('python /opt/'):command.index("echo '[merge] Cell-type merge complete'")]
+            paths = [str(Path(tmp) / name) for name in
+                     ["cd4 ' $(touch NEVER) `touch NEVER` scores.tsv", 'nk scores.tsv']]
+            fields = ['model_id', 'cell_type', 'chr', 'pos', 'allele1', 'allele2',
+                      'variant_id', 'logfc', 'jsd', 'active_allele_quantile']
+            for path, model, cell in zip(paths, ['cd4', 'nk'], ['CD4 T cell', 'NK']):
+                with open(path, 'w') as stream:
+                    writer = csv.writer(stream, delimiter='\t', lineterminator='\n')
+                    writer.writerow(fields)
+                    for ident, pos, alt in [('v1', '50', 'T'), ('v2', '60', 'C')]:
+                        writer.writerow([model, cell, 'chr1', pos, 'A', alt, ident, '0.25', '0.1', '0.9'])
+            cloud_paths = ['gs://test-bucket/call-ScoreVariants/shard-0/scores.tsv',
+                           'gs://test-bucket/call-ScoreVariants/shard-1/scores.tsv']
+            env = WDL.values_from_json(dict(score_files=cloud_paths, docker_image='test'), task.available_inputs, task.required_inputs)
+            localized = dict(zip(cloud_paths, paths))
+            # Task File inputs are localized before command rendering. WDL
+            # write_* results can still be virtual cloud paths at this stage.
+            env = WDL.Value.rewrite_env_paths(env, lambda file: localized[file.value])
+            command = task.command.eval(env, CloudGeneratedFileStdLib('1.0', tmp)).value
+            entrypoint = shlex.quote(sys.executable) + ' ' + shlex.quote(str(ROOT / 'scripts/merge_scores.py'))
+            command = command.replace('python /opt/chrombpnet/scripts/merge_scores.py', entrypoint)
+            if sys.platform == 'darwin':
+                # The macOS sandbox blocks process-substitution descriptors.
+                # GitHub's Linux runner executes the original log redirection.
+                command = command.replace('exec > >(tee merge.log) 2>&1', '')
+            result = subprocess.run(['bash', '-c', command], cwd=tmp, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            with (Path(tmp) / 'variant_effects.all_models.tsv').open() as stream:
+                self.assertEqual(len(list(csv.DictReader(stream, delimiter='\t'))), 4)
+            with (Path(tmp) / 'variant_effects.wide.tsv').open() as stream:
+                self.assertEqual(len(list(csv.DictReader(stream, delimiter='\t'))), 2)
+            self.assertFalse((Path(tmp) / 'NEVER').exists())
+            self.assertNotIn('gs://', command)
+            # Inspect the list passed to the real merge script, after its shell
+            # command has created it inside the task execution directory.
+            invocation = command[command.index(entrypoint):command.index("echo '[merge] Cell-type merge complete'")]
             words = shlex.split(invocation.replace('\\\n', ''))
-            file_list = Path(words[words.index('--score-files') + 1])
+            file_list = Path(tmp) / words[words.index('--score-files') + 1]
             self.assertEqual(file_list.read_text().splitlines(), paths)
             self.assertNotIn('gs://', file_list.read_text())
 
