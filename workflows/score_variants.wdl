@@ -21,6 +21,9 @@ workflow ChromBPNetVariantScoring {
         Int random_seed = 1234
         Int scoring_memory_gb = 64
         Int scoring_disk_gb = 100
+        Int merge_memory_gb = 64
+        Int merge_disk_gb = 500
+        Int merge_max_retries = 2
         Int num_preempt = 0
     }
 
@@ -65,7 +68,10 @@ workflow ChromBPNetVariantScoring {
     call MergeVariantEffects {
         input:
             score_files = ScoreVariants.variant_effects,
-            docker_image = docker_image
+            docker_image = docker_image,
+            memory_gb = merge_memory_gb,
+            disk_gb = merge_disk_gb,
+            max_retries = merge_max_retries
     }
 
     output {
@@ -179,6 +185,9 @@ task MergeVariantEffects {
     input {
         Array[File] score_files
         String docker_image
+        Int memory_gb = 64
+        Int disk_gb = 500
+        Int max_retries = 2
     }
     command <<<
         set -euo pipefail
@@ -211,9 +220,10 @@ task MergeVariantEffects {
     runtime {
         docker: docker_image
         cpu: 2
-        memory: '8 GB'
-        disks: 'local-disk 20 SSD'
+        memory: '~{memory_gb}GB'
+        disks: 'local-disk ~{disk_gb} SSD'
         bootDiskSizeGb: 50
         preemptible: 0
+        maxRetries: max_retries
     }
 }

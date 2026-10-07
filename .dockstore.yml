@@ -14,3 +14,16 @@ workflows:
       branches:
         - main
     topic: GPU ChromBPNet variant scoring across cell-type models with merged chromatin effect tables.
+  - name: chrombpnet-merge-variant-effects
+    subclass: WDL
+    primaryDescriptorPath: /workflows/merge_variants.wdl
+    testParameterFiles:
+      - /examples/merge_inputs.json
+    readMePath: /README.md
+    otherFiles:
+      - /workflows/score_variants.wdl
+    publish: true
+    filters:
+      branches:
+        - main
+    topic: Merge saved ChromBPNet variant scores and average model folds without running GPU scoring.
