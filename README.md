@@ -2,7 +2,8 @@
 
 [workflows/score_variants.wdl](workflows/score_variants.wdl) scores predicted chromatin
 effects for a variant list across cell-type models. The workflow uses WDL 1.0.
-It runs one GPU task per model and merges the score files in a CPU task.
+It runs one GPU scoring task per fold. It then runs one CPU summary task per
+model group and a final CPU task to combine the outputs.
 
 ## Inputs
 
@@ -153,30 +154,38 @@ Each scoring task decompresses its localized FASTA before scoring. Select enough
 task disk for both the compressed and uncompressed reference, its index, the
 localized model, peaks, and outputs. The manifest and merge tasks do not request GPUs.
 
-The merge task has separate inputs: `merge_memory_gb` defaults to 64,
+Each model summary task has separate inputs: `summary_memory_gb` defaults to 64,
+`summary_disk_gb` defaults to 500 (SSD), and `summary_max_retries` defaults to 2.
+The final combine task has separate inputs: `merge_memory_gb` defaults to 64,
 `merge_disk_gb` defaults to 500 (SSD), and `merge_max_retries` defaults to 2.
 Two retries permit up to three attempts. Retries use the same memory request;
-increase `merge_memory_gb` when a merge fails because it needs more memory.
+increase the memory input for the task that needs more memory.
 These WDL resource inputs use the existing Docker image. Changing them does
 not trigger an image rebuild. The image workflow runs only for `scripts/**` changes.
 
 ## Recover a failed merge
 
 Use [workflows/merge_variants.wdl](workflows/merge_variants.wdl) to rerun only the
-merge and fold summary from saved score files. Register the
+model summaries and final combination from saved score files. Register the
 `chrombpnet-merge-variant-effects` workflow in Terra through Dockstore, or import
-the WDL with its `score_variants.wdl` dependency. It has no scoring calls and
-does not need variants, models, peaks, or the genome as inputs.
+the WDL with its `summarize_variants.wdl` dependency. It has no scoring calls.
+Supply the original TSV model manifest so each summary can use the correct
+cell type and peaks. The workflow localizes peak files, but does not open model
+files or need the genome or a separate variant input.
 
 Copy [examples/merge_inputs.json](examples/merge_inputs.json), then replace its
 `score_files` array with the full `gs://` paths for all completed
 `call-ScoreVariants/shard-*/effects/variant_effects.tsv` files from the failed run.
 Use the exact object paths shown in the call outputs; do not supply a wildcard,
-a file-list TSV, or the already merged table. Include each model/fold file once.
+a file-list TSV, or the already merged table. Include each model/fold file once,
+**in the same order as the data rows in `model_manifest`**. A summary task checks
+each score file's model ID and cell type against the manifest. An incorrect order
+fails with a clear error instead of assigning a file to the wrong group.
 The typed `Array[File]` input lets Cromwell localize every score file.
 Set `docker_image` to the same image digest used by the current scoring workflow.
-The defaults are 64 GB memory, 500 GB SSD, and two retries. The outputs are the
-long merge, wide merge, fold summary, and merge log.
+The summary and combine defaults are 64 GB memory, 500 GB SSD, and two retries.
+The outputs are the long merge, wide merge, combined fold summary, per-model fold
+summaries, and task logs. The peak annotation is included in each fold summary.
 
 You can also resubmit the full workflow with call caching enabled, the same
 scoring inputs and image digest, and only the merge inputs changed. Terra can
@@ -204,6 +213,19 @@ The output includes these upstream metrics:
   relative to the supplied peaks.
 - The upstream products of these metrics, including effect and prioritization scores.
 
+The shared [workflows/summarize_variants.wdl](workflows/summarize_variants.wdl)
+first creates a model-group plan from the manifest. That plan contains group names,
+cell types, and row indices. Its JSON format represents structured output data;
+it is not a task argument wrapper and contains no input file paths. The workflow
+selects typed score and peak `File` inputs before task localization.
+
+Each `SummarizeModel` task receives only the folds for one model group and its
+peak file. It averages those folds and adds the peak annotation. `CombineModelEffects`
+then combines these completed outputs. It does not calculate new means across
+model groups. It streams the long and summary tables and stores the wide rows in
+a temporary SQLite database on the task disk. Variant identities must match across
+groups; variant order can differ. Existing long and wide outputs keep all folds.
+
 The `fold_summary` output is `variant_effects.fold_summary.tsv`. It has one row
 per variant per model group, with arithmetic means of all numeric score columns
 named `<metric>.mean`. This follows the upstream method for averaging fold scores.
@@ -220,6 +242,7 @@ rule: `GM12878_ATAC_ENCSR637XSC_fold0` through `fold4` become the model group
 model set, or configuration that must remain separate. IDs without this suffix
 produce separate one-model summaries. The script rejects duplicate fold indices,
 groups with different cell types, and groups that mix suffixed and unsuffixed IDs.
+All folds in a group must also use the same peak URI in the manifest.
 
 The summary also provides:
 
@@ -232,6 +255,17 @@ The summary also provides:
 - `direction_agreement`: the larger of the positive and negative counts divided
   by `n_folds`. Zero effects remain in the denominator; all-zero effects give zero.
   This measures model agreement, not statistical significance.
+- `in_peak`: `true` when the variant's reference interval overlaps at least one
+  supplied peak for that model group; otherwise `false`. The input position is
+  1-based. For a reference allele of length `L`, the tested BED interval is
+  `[pos - 1, pos - 1 + L)`. An empty reference allele (`-`) uses one base at that
+  position. Peak intervals are 0-based with an excluded end position. SNPs test
+  one base; deletions test their full reference span. Peak starts count as overlap;
+  peak ends do not. Chromosome names must match exactly. The annotation uses the
+  full supplied peak file, regardless of the scoring task's `max_peaks` setting.
+
+`per_model_fold_summaries` returns each model group's annotated summary before
+combination. `summary_logs` and `grouping_log` report the summary and grouping steps.
 
 To summarize an existing merged file without running GPU scoring again:
 
@@ -241,9 +275,11 @@ python scripts/summarize_folds.py \
   --output variant_effects.fold_summary.tsv
 ```
 
-The updated WDL requires an image that includes `scripts/summarize_folds.py`.
-GitHub Actions builds and smoke-tests that image for this script change. After
-the change is merged, use the newly published image digest in Terra.
+The workflows reuse the existing image's `merge_scores.py`, `summarize_folds.py`,
+and validation functions. New grouping, peak annotation, and combination code runs
+inside WDL commands using Python's standard library. **This change does not require
+an image rebuild.** Use the same digest as your current fold-summary pipeline.
+The direct Python command above averages folds only; it does not add `in_peak`.
 
 The wrapper uses temporary internal IDs during scoring. It restores original IDs,
 including `NA` and numeric-looking IDs, in main and shuffled score files.
@@ -262,7 +298,8 @@ it limits the number of valid peaks sampled for the quantile distribution.
 `random_seed` defaults to 1234. `batch_size` defaults to 128.
 
 The upstream scorer stores predictions in memory. Increase task memory or split
-large variant lists if needed. The merge task also stores score rows in memory.
+large variant lists if needed. Each model summary stores that group's fold scores
+in memory; the final combine task stores rows on disk.
 Predicted accessibility effects do not prove a causal expression effect.
 
 ## Container and checks
@@ -294,13 +331,19 @@ Run the other checks with Python 3.11 and `miniwdl==1.14.2`:
 ```sh
 python -m unittest discover -s tests -v
 miniwdl check workflows/score_variants.wdl
+miniwdl check workflows/merge_variants.wdl
+miniwdl check workflows/summarize_variants.wdl
 python tests/check_wdl.py workflows/score_variants.wdl
+python tests/check_wdl.py workflows/merge_variants.wdl
+python tests/check_wdl.py workflows/summarize_variants.wdl
 ```
 
 Tests check File types in the parsed manifest, command-time localization,
 shell quoting, optional CLI arguments, and workflow-scope file writes.
-The merge regression test starts with cloud File inputs, applies their local
-path mapping, and executes the rendered command with the actual merge script.
+The grouping, summary, and combination tests start with cloud File inputs, apply
+their local path mapping, and execute the actual rendered task commands.
+They check group selection, wrong model assignments, peak boundaries, indels,
+missing or changed variants, and different variant orders across groups.
 It also models the cloud URI that Terra can return for `write_lines`. The static
 check rejects WDL file-writing functions inside task command expressions;
 commands must create required local files directly.
@@ -311,8 +354,8 @@ function. The merge command uses the WDL 1.0 placeholder option
 validates the workflow with Cromwell's `womtool` 85 and Java 17.
 Miniwdl can warn that `predefinedMachineType` is unknown; Cromwell uses that field.
 
-**The revised merge resources and merge-only workflow have not been run on Terra.**
-Local command tests exercise cloud-to-local File mapping and actual merge output.
+**The per-model summary, peak annotation, and final combination have not been run
+on Terra.** Local command tests exercise cloud-to-local File mapping and actual outputs.
 Syntax checks and the CPU image smoke test do not validate L4 GPU execution.
 No Terra or other analysis jobs were submitted for this change.
 

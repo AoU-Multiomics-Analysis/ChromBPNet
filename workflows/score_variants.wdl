@@ -1,5 +1,7 @@
 version 1.0
 
+import "summarize_variants.wdl" as summaries
+
 struct ModelSpec {
     String model_id
     String cell_type
@@ -21,6 +23,9 @@ workflow ChromBPNetVariantScoring {
         Int random_seed = 1234
         Int scoring_memory_gb = 64
         Int scoring_disk_gb = 100
+        Int summary_memory_gb = 64
+        Int summary_disk_gb = 500
+        Int summary_max_retries = 2
         Int merge_memory_gb = 64
         Int merge_disk_gb = 500
         Int merge_max_retries = 2
@@ -65,13 +70,17 @@ workflow ChromBPNetVariantScoring {
         }
     }
 
-    call MergeVariantEffects {
+    call summaries.ChromBPNetSummarizeVariants as SummarizeVariants {
         input:
+            model_manifest = model_manifest,
             score_files = ScoreVariants.variant_effects,
             docker_image = docker_image,
-            memory_gb = merge_memory_gb,
-            disk_gb = merge_disk_gb,
-            max_retries = merge_max_retries
+            summary_memory_gb = summary_memory_gb,
+            summary_disk_gb = summary_disk_gb,
+            summary_max_retries = summary_max_retries,
+            merge_memory_gb = merge_memory_gb,
+            merge_disk_gb = merge_disk_gb,
+            merge_max_retries = merge_max_retries
     }
 
     output {
@@ -80,10 +89,13 @@ workflow ChromBPNetVariantScoring {
         Array[File] per_model_metadata = ScoreVariants.metadata
         Array[File] per_model_logs = ScoreVariants.log
         Array[File] shuffled_scores = flatten(ScoreVariants.shuffled_scores)
-        File merged_effects = MergeVariantEffects.long_effects
-        File wide_effects = MergeVariantEffects.wide_effects
-        File fold_summary = MergeVariantEffects.fold_summary
-        File merge_log = MergeVariantEffects.log
+        File merged_effects = SummarizeVariants.merged_effects
+        File wide_effects = SummarizeVariants.wide_effects
+        File fold_summary = SummarizeVariants.fold_summary
+        File merge_log = SummarizeVariants.merge_log
+        Array[File] per_model_fold_summaries = SummarizeVariants.per_model_fold_summaries
+        Array[File] summary_logs = SummarizeVariants.summary_logs
+        File grouping_log = SummarizeVariants.grouping_log
         File manifest_validation = ValidateManifest.validation
     }
 }
@@ -178,52 +190,5 @@ task ScoreVariants {
         gpuType: 'nvidia-l4'
         gpuCount: 1
         zones: ['us-central1-a', 'us-central1-b', 'us-central1-c', 'us-central1-f']
-    }
-}
-
-task MergeVariantEffects {
-    input {
-        Array[File] score_files
-        String docker_image
-        Int memory_gb = 64
-        Int disk_gb = 500
-        Int max_retries = 2
-    }
-    command <<<
-        set -euo pipefail
-        exec > >(tee merge.log) 2>&1
-        echo '[merge] Start cell-type merge'
-        # Create the list in the execution directory from localized File inputs.
-        # A write_lines result inside a String expression can remain a cloud URI.
-        # WDL 1.0 uses a sep placeholder option, not a sep() function.
-        # The quoted delimiter disables shell expansion of the localized paths.
-        cat > score_files.list <<'CHROMBPNET_SCORE_FILES'
-        ~{sep="\n" score_files}
-        CHROMBPNET_SCORE_FILES
-        echo '[merge] Created task-local score file list'
-        python /opt/chrombpnet/scripts/merge_scores.py \
-            --score-files score_files.list \
-            --long-output variant_effects.all_models.tsv \
-            --wide-output variant_effects.wide.tsv
-        echo '[merge] Start fold summary'
-        python /opt/chrombpnet/scripts/summarize_folds.py \
-            --scores variant_effects.all_models.tsv \
-            --output variant_effects.fold_summary.tsv
-        echo '[merge] Cell-type merge complete'
-    >>>
-    output {
-        File long_effects = 'variant_effects.all_models.tsv'
-        File wide_effects = 'variant_effects.wide.tsv'
-        File fold_summary = 'variant_effects.fold_summary.tsv'
-        File log = 'merge.log'
-    }
-    runtime {
-        docker: docker_image
-        cpu: 2
-        memory: '~{memory_gb}GB'
-        disks: 'local-disk ~{disk_gb} SSD'
-        bootDiskSizeGb: 50
-        preemptible: 0
-        maxRetries: max_retries
     }
 }
