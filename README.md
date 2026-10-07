@@ -53,6 +53,14 @@ and image digest. Register the WDL in Terra, then use the input JSON for your
 workspace submission. Ensure that the workspace can read all inputs and the image.
 The example variant is a format example; check its REF against your selected genome.
 
+For a pipeline test, use
+[the 100-variant GM12878 ATAC TSV](examples/GM12878_ATAC.test_100_variants.tsv).
+It contains synthetic SNPs in 100 distinct GM12878 peak intervals, with reference
+alleles checked against UCSC hg38. See the
+[test-set notes](examples/GM12878_ATAC.test_100_variants.README.md) for sources,
+checks, and an upload command. Set `max_peaks` to 100 and keep `num_shuf` at 0
+for a short execution test.
+
 ## Download GM12878 ATAC inputs
 
 [tools/prepare_gm12878.py](tools/prepare_gm12878.py) prepares the five-fold ATAC
