@@ -172,6 +172,47 @@ The output includes these upstream metrics:
   relative to the supplied peaks.
 - The upstream products of these metrics, including effect and prioritization scores.
 
+The `fold_summary` output is `variant_effects.fold_summary.tsv`. It has one row
+per variant per model group, with arithmetic means of all numeric score columns
+named `<metric>.mean`. This follows the upstream method for averaging fold scores.
+For example, it provides `logfc.mean`, `jsd.mean`,
+`active_allele_quantile.mean`, and `abs_logfc_x_jsd_x_active_allele_quantile.mean`.
+Products and absolute values are averaged from the per-fold scores. They are
+not calculated again from the averaged component scores. P-value columns are
+excluded from this summary; the per-fold files retain them.
+
+To group folds, use model IDs with a shared prefix and a final `_foldN` suffix,
+where `N` is a nonnegative integer. The prepared GM12878 IDs already follow this
+rule: `GM12878_ATAC_ENCSR637XSC_fold0` through `fold4` become the model group
+`GM12878_ATAC_ENCSR637XSC`. Use a different prefix for each cell type, assay,
+model set, or configuration that must remain separate. IDs without this suffix
+produce separate one-model summaries. The script rejects duplicate fold indices,
+groups with different cell types, and groups that mix suffixed and unsuffixed IDs.
+
+The summary also provides:
+
+- `n_folds` and `model_ids`: the actual number and IDs of the supplied models.
+  Missing folds are not filled in. All supplied models must score the same variants.
+- `logfc.sd`: sample standard deviation across folds, with denominator `n_folds - 1`.
+  It is blank when only one model is supplied.
+- `percent_change`: `100 * (2^logfc.mean - 1)`, for allele2 relative to allele1.
+- `n_positive`, `n_negative`, and `n_zero`: fold counts by effect direction.
+- `direction_agreement`: the larger of the positive and negative counts divided
+  by `n_folds`. Zero effects remain in the denominator; all-zero effects give zero.
+  This measures model agreement, not statistical significance.
+
+To summarize an existing merged file without running GPU scoring again:
+
+```sh
+python scripts/summarize_folds.py \
+  --scores variant_effects.all_models.tsv \
+  --output variant_effects.fold_summary.tsv
+```
+
+The updated WDL requires an image that includes `scripts/summarize_folds.py`.
+GitHub Actions builds and smoke-tests that image for this script change. After
+the change is merged, use the newly published image digest in Terra.
+
 The wrapper uses temporary internal IDs during scoring. It restores original IDs,
 including `NA` and numeric-looking IDs, in main and shuffled score files.
 Each per-model TSV adds `model_id` and `cell_type`. The workflow also returns peak

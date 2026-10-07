@@ -76,6 +76,7 @@ workflow ChromBPNetVariantScoring {
         Array[File] shuffled_scores = flatten(ScoreVariants.shuffled_scores)
         File merged_effects = MergeVariantEffects.long_effects
         File wide_effects = MergeVariantEffects.wide_effects
+        File fold_summary = MergeVariantEffects.fold_summary
         File merge_log = MergeVariantEffects.log
         File manifest_validation = ValidateManifest.validation
     }
@@ -195,11 +196,16 @@ task MergeVariantEffects {
             --score-files score_files.list \
             --long-output variant_effects.all_models.tsv \
             --wide-output variant_effects.wide.tsv
+        echo '[merge] Start fold summary'
+        python /opt/chrombpnet/scripts/summarize_folds.py \
+            --scores variant_effects.all_models.tsv \
+            --output variant_effects.fold_summary.tsv
         echo '[merge] Cell-type merge complete'
     >>>
     output {
         File long_effects = 'variant_effects.all_models.tsv'
         File wide_effects = 'variant_effects.wide.tsv'
+        File fold_summary = 'variant_effects.fold_summary.tsv'
         File log = 'merge.log'
     }
     runtime {
