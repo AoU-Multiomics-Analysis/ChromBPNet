@@ -104,6 +104,35 @@ Leave `genome_index` unset. Supply your own variant list and tested scoring imag
 digest. If you use `--skip-reference`, also supply your own genome and chromosome
 sizes. These uploads do not submit the WDL or start a Terra job.
 
+## Download TenK10K ATAC inputs
+
+[tools/prepare_tenk10k.py](tools/prepare_tenk10k.py) uses the same manifest format
+as the GM12878 tool. It prepares **130 bias-corrected models: folds 0–4 for 26
+cell types**. It also downloads the combined annotated peaks and the peak archive
+for all 28 cell types. See [the TenK10K instructions](examples/TenK10K_ATAC.README.md)
+for source details, file formats, and workflow inputs.
+
+Keep the data on T7. Install and authenticate `gsutil`, then replace the bucket
+path in this command:
+
+```sh
+python3 tools/prepare_tenk10k.py \
+  --output-dir /Volumes/T7/AoU/ChromBPNet/TenK10K_ATAC \
+  --gcs-prefix gs://your-bucket/chrombpnet/TenK10K_ATAC \
+  --skip-reference
+```
+
+The tool verifies source checksums, converts peak CSV files to narrowPeak TSV,
+and retains the two released BED6 files. Each model row uses the peaks for its
+cell type. The ready `models.tsv` is uploaded after all data files. Set
+`model_manifest` to `gs://your-bucket/chrombpnet/TenK10K_ATAC/models.tsv` in the
+existing scoring WDL. Use your existing hg38 genome and chromosome sizes with
+`--skip-reference`; omit that flag to prepare and upload the reference as well.
+
+Add `--plan-only` to inspect the full manifest without downloads or uploads.
+The resulting `models.planned.tsv` has future GCS paths and is not ready for Terra.
+The bundled source inventory pins an immutable Hugging Face revision.
+
 ## GPU and storage
 
 The scoring runtime requests:
