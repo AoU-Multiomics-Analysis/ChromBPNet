@@ -16,7 +16,9 @@ jobs:
       - run: python -m pip install miniwdl==1.14.2
       - run: python -m unittest discover -s tests -v
       - run: miniwdl check workflows/score_variants.wdl
+      - run: miniwdl check workflows/merge_variants.wdl
       - run: python tests/check_wdl.py workflows/score_variants.wdl
+      - run: python tests/check_wdl.py workflows/merge_variants.wdl
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -27,3 +29,4 @@ jobs:
             https://github.com/broadinstitute/cromwell/releases/download/85/womtool-85.jar \
             --output "$RUNNER_TEMP/womtool-85.jar"
           java -jar "$RUNNER_TEMP/womtool-85.jar" validate workflows/score_variants.wdl
+          java -jar "$RUNNER_TEMP/womtool-85.jar" validate workflows/merge_variants.wdl

@@ -145,13 +145,45 @@ cpu: 16
 zones: ["us-central1-a", "us-central1-b", "us-central1-c", "us-central1-f"]
 ```
 
-The default memory is 64 GB. The default task disk is 100 GB SSD. The boot disk
+The scoring task defaults to 64 GB memory and 100 GB SSD. The boot disk
 is 50 GB. `num_preempt` defaults to zero. The g2-standard-16 machine has one L4
 GPU, so the GPU count is fixed at one. The script fails if TensorFlow cannot
 find a GPU. Compressed FASTA files reduce the data transferred during localization.
 Each scoring task decompresses its localized FASTA before scoring. Select enough
 task disk for both the compressed and uncompressed reference, its index, the
 localized model, peaks, and outputs. The manifest and merge tasks do not request GPUs.
+
+The merge task has separate inputs: `merge_memory_gb` defaults to 64,
+`merge_disk_gb` defaults to 500 (SSD), and `merge_max_retries` defaults to 2.
+Two retries permit up to three attempts. Retries use the same memory request;
+increase `merge_memory_gb` when a merge fails because it needs more memory.
+These WDL resource inputs use the existing Docker image. Changing them does
+not trigger an image rebuild. The image workflow runs only for `scripts/**` changes.
+
+## Recover a failed merge
+
+Use [workflows/merge_variants.wdl](workflows/merge_variants.wdl) to rerun only the
+merge and fold summary from saved score files. Register the
+`chrombpnet-merge-variant-effects` workflow in Terra through Dockstore, or import
+the WDL with its `score_variants.wdl` dependency. It has no scoring calls and
+does not need variants, models, peaks, or the genome as inputs.
+
+Copy [examples/merge_inputs.json](examples/merge_inputs.json), then replace its
+`score_files` array with the full `gs://` paths for all completed
+`call-ScoreVariants/shard-*/effects/variant_effects.tsv` files from the failed run.
+Use the exact object paths shown in the call outputs; do not supply a wildcard,
+a file-list TSV, or the already merged table. Include each model/fold file once.
+The typed `Array[File]` input lets Cromwell localize every score file.
+Set `docker_image` to the same image digest used by the current scoring workflow.
+The defaults are 64 GB memory, 500 GB SSD, and two retries. The outputs are the
+long merge, wide merge, fold summary, and merge log.
+
+You can also resubmit the full workflow with call caching enabled, the same
+scoring inputs and image digest, and only the merge inputs changed. Terra can
+reuse successful scoring calls when their inputs and outputs match and remain
+accessible. Changing scoring resource inputs can prevent these cache hits.
+See [Terra call caching](https://support.terra.bio/hc/en-us/articles/360047664872-Call-caching-How-it-works-and-when-to-use-it).
+The merge-only workflow avoids scoring calls even when a cache hit is unavailable.
 
 ## Scores and outputs
 
@@ -279,18 +311,16 @@ function. The merge command uses the WDL 1.0 placeholder option
 validates the workflow with Cromwell's `womtool` 85 and Java 17.
 Miniwdl can warn that `predefinedMachineType` is unknown; Cromwell uses that field.
 
-**The complete workflow has not been verified successfully on Terra.** A reported
-Terra run reached the merge task but failed because its generated file-list path
-remained a cloud URI. The first fix then failed Terra's parser because it used
-`sep()`. The revised command creates the list locally with WDL 1.0 syntax. It
-passed the command regression test, but has not been rerun on Terra. Syntax checks
-and the CPU image smoke test do not validate L4 GPU execution. No Terra or other
-analysis jobs were submitted for this fix.
+**The revised merge resources and merge-only workflow have not been run on Terra.**
+Local command tests exercise cloud-to-local File mapping and actual merge output.
+Syntax checks and the CPU image smoke test do not validate L4 GPU execution.
+No Terra or other analysis jobs were submitted for this change.
 
 ## Dockstore
 
 [.dockstore.yml](.dockstore.yml) uses Dockstore schema 1.2. It registers
-`chrombpnet-variant-scoring` from the WDL, README, and example input files.
+`chrombpnet-variant-scoring` and `chrombpnet-merge-variant-effects` from their WDLs,
+README, and example input files.
 The configuration requests public publication with `publish: true` and limits
 registration to the `main` branch.
 
