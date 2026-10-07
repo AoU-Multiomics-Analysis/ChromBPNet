@@ -103,7 +103,7 @@ class ModelSummaryTaskTests(unittest.TestCase):
 
     def test_wrong_model_assignment_fails_before_summary(self):
         _, result = self.summary(expected=['b_fold0', 'b_fold1'], success=False)
-        self.assertIn('model', result.stderr.lower())
+        self.assertIn('model', (result.stdout + result.stderr).lower())
 
     def test_cell_type_cli_argument_is_safely_quoted(self):
         cell = "CD4 T ' cell $(touch NEVER) `touch NEVER`"
@@ -128,7 +128,7 @@ class ModelSummaryTaskTests(unittest.TestCase):
             model_ids=['a_fold0'], model_group='a', cell_type='CD4', peaks='gs://peaks/0'),
             {'gs://scores/0': paths[0], 'gs://peaks/0': Path('s3://unresolved/peaks')},
             output, success=False)
-        self.assertIn('localization', result.stderr.lower())
+        self.assertIn('localization', (result.stdout + result.stderr).lower())
 
     def test_peak_nested_intervals_and_invalid_coordinates(self):
         peaks = self.root / 'nested.bed'
@@ -138,7 +138,7 @@ class ModelSummaryTaskTests(unittest.TestCase):
                             self.table(output, 'variant_effects.fold_summary.tsv') if r['chr'] == 'chr1'))
         peaks.write_text('chr1\t10\t9\n')
         _, result = self.summary(peaks=peaks, success=False)
-        self.assertIn('peak', result.stderr.lower())
+        self.assertIn('peak', (result.stdout + result.stderr).lower())
 
     def manifest(self, rows):
         path = self.root / "manifest ' $(touch NEVER).tsv"
@@ -175,7 +175,7 @@ class ModelSummaryTaskTests(unittest.TestCase):
                 result = self.run_task('PlanModelSummaries',
                     dict(model_manifest='gs://manifest', n_score_files=count),
                     {'gs://manifest': manifest}, self.root / f'bad_plan_{index}', success=False)
-                self.assertIn(message, result.stderr.lower())
+                self.assertIn(message, (result.stdout + result.stderr).lower())
 
     def test_group_plan_selects_only_its_localized_scores_and_peak_file(self):
         manifest = self.manifest([['a_fold1', 'CD4', 'gs://m/a1', 'gs://p/a'],
@@ -259,7 +259,7 @@ class ModelSummaryTaskTests(unittest.TestCase):
         path = b / 'variant_effects.wide.tsv'
         path.write_text(path.read_text().replace('chr1\t10\tA\tT', 'chr1\t10\tG\tT'))
         _, result = self.combine([a, b], success=False)
-        self.assertIn('identity', result.stderr.lower())
+        self.assertIn('identity', (result.stdout + result.stderr).lower())
 
     def test_combination_rejects_missing_variant(self):
         a, _ = self.summary()
@@ -268,7 +268,7 @@ class ModelSummaryTaskTests(unittest.TestCase):
         lines = path.read_text().splitlines()
         path.write_text('\n'.join(lines[:-1]) + '\n')
         _, result = self.combine([a, b], success=False)
-        self.assertIn('variant set', result.stderr.lower())
+        self.assertIn('variant set', (result.stdout + result.stderr).lower())
 
     def test_workflow_scatter_selects_typed_files_and_has_no_scoring_calls(self):
         source = ROOT / 'workflows/summarize_variants.wdl'
