@@ -30,12 +30,14 @@ workflow ChromBPNetSummarizeVariants {
     Array[Array[String]] manifest_rows = read_tsv(PlanModelSummaries.rows)
 
     scatter (group in groups) {
-        scatter (index in group.indices) {
+        Array[Int] group_indices = group.indices
+        Int peak_index = group_indices[0]
+        scatter (index in group_indices) {
             File group_scores = score_files[index]
             String group_model_ids = manifest_rows[index][0]
         }
         # Coerce URI metadata to File before task localization.
-        File group_peaks = manifest_rows[group.indices[0]][3]
+        File group_peaks = manifest_rows[peak_index][3]
         call SummarizeModel {
             input:
                 score_files = group_scores,

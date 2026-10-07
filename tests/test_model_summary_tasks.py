@@ -197,6 +197,9 @@ class ModelSummaryTaskTests(unittest.TestCase):
                 env = env.bind(node.name, node.expr.eval(env, stdlib).coerce(node.type))
         scatter = next(node for node in doc.workflow.body if isinstance(node, WDL.Tree.Scatter))
         env = env.bind('group', env['groups'].value[0])
+        for node in scatter.body:
+            if isinstance(node, WDL.Tree.Decl) and node.name in ['group_indices', 'peak_index']:
+                env = env.bind(node.name, node.expr.eval(env, stdlib).coerce(node.type))
         inner = next(node for node in scatter.body if isinstance(node, WDL.Tree.Scatter))
         selected = {'group_scores': [], 'group_model_ids': []}
         for index in inner.expr.eval(env, stdlib).value:
@@ -207,7 +210,7 @@ class ModelSummaryTaskTests(unittest.TestCase):
         self.assertTrue(all(isinstance(value, WDL.Value.File) for value in selected['group_scores']))
         self.assertEqual([value.value for value in selected['group_scores']],
                          ['gs://scores/a0', 'gs://scores/a1'])
-        peak_decl = next(node for node in scatter.body if isinstance(node, WDL.Tree.Decl))
+        peak_decl = next(node for node in scatter.body if isinstance(node, WDL.Tree.Decl) and node.name == 'group_peaks')
         peak = peak_decl.expr.eval(env, stdlib).coerce(peak_decl.type)
         self.assertIsInstance(peak, WDL.Value.File)
         self.assertEqual(peak.value, 'gs://p/a')
