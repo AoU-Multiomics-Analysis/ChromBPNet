@@ -185,7 +185,11 @@ task MergeVariantEffects {
         echo '[merge] Start cell-type merge'
         # Create the list in the execution directory from localized File inputs.
         # A write_lines result inside a String expression can remain a cloud URI.
-        printf '%s\n' '~{sub(sep("\n", score_files), "'", "'\"'\"'")}' > score_files.list
+        # WDL 1.0 uses a sep placeholder option, not a sep() function.
+        # The quoted delimiter disables shell expansion of the localized paths.
+        cat > score_files.list <<'CHROMBPNET_SCORE_FILES'
+        ~{sep="\n" score_files}
+        CHROMBPNET_SCORE_FILES
         echo '[merge] Created task-local score file list'
         python /opt/chrombpnet/scripts/merge_scores.py \
             --score-files score_files.list \

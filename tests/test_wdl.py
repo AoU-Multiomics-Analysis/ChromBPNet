@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 import WDL
-from check_wdl import command_writes, workflow_writes
+from check_wdl import command_writes, unsupported_functions, workflow_writes
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -32,6 +32,21 @@ class WDLTests(unittest.TestCase):
 
     def test_workflow_has_no_file_writes(self):
         self.assertEqual(workflow_writes(self.doc), [])
+
+    def test_workflow_uses_only_wdl_1_0_functions(self):
+        self.assertEqual(unsupported_functions(self.doc), [])
+
+    def test_static_check_rejects_sep_function_but_accepts_separator_option(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'separator.wdl'
+            path.write_text('''version 1.0
+task bad { input { Array[File] xs } command <<< echo '~{sub(sep(" ", xs), "x", "y")}' >>> }
+''')
+            self.assertEqual(unsupported_functions(WDL.load(str(path))), [('sep', 2)])
+            path.write_text('''version 1.0
+task good { input { Array[File] xs } command <<< echo '~{sep=" " xs}' >>> }
+''')
+            self.assertEqual(unsupported_functions(WDL.load(str(path))), [])
 
     def test_static_check_catches_nested_workflow_writes(self):
         source = 'version 1.0\nworkflow bad { input { Array[String] xs } scatter (x in xs) { File f = write_lines([x]) } output { Array[File] files = f } }'

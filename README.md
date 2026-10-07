@@ -202,11 +202,17 @@ path mapping, and executes the rendered command with the actual merge script.
 It also models the cloud URI that Terra can return for `write_lines`. The static
 check rejects WDL file-writing functions inside task command expressions;
 commands must create required local files directly.
+It also rejects functions outside the WDL 1.0 standard library. Miniwdl accepts
+some newer functions in a 1.0 document, including `sep()`. Terra rejects that
+function. The merge command uses the WDL 1.0 placeholder option
+`~{sep="\n" score_files}` inside a quoted shell file block. GitHub Actions also
+validates the workflow with Cromwell's `womtool` 85 and Java 17.
 Miniwdl can warn that `predefinedMachineType` is unknown; Cromwell uses that field.
 
 **The complete workflow has not been verified successfully on Terra.** A reported
 Terra run reached the merge task but failed because its generated file-list path
-remained a cloud URI. The revised command creates that list locally. The fix
+remained a cloud URI. The first fix then failed Terra's parser because it used
+`sep()`. The revised command creates the list locally with WDL 1.0 syntax. It
 passed the command regression test, but has not been rerun on Terra. Syntax checks
 and the CPU image smoke test do not validate L4 GPU execution. No Terra or other
 analysis jobs were submitted for this fix.
