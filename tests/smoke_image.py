@@ -45,18 +45,19 @@ def main():
         scripts = Path('/opt/chrombpnet/scripts')
         manifest = root / 'models.tsv'
         manifest.write_text('model_id\tcell_type\tmodel\tpeaks\n' +
-            f'cd4\tCD4 T cell\t{model_path}\t{peaks}\n' + f'nk\tNK\t{model_path}\t{peaks}\n')
+            f'cd4_fold0\tCD4 T cell\t{model_path}\t{peaks}\n' +
+            f'cd4_fold1\tCD4 T cell\t{model_path}\t{peaks}\n' + f'nk\tNK\t{model_path}\t{peaks}\n')
         subprocess.run([sys.executable, str(scripts / 'validate_manifest.py'), '--manifest', str(manifest),
             '--output', str(root / 'validated.txt'), '--rows-output', str(root / 'normalized.tsv')], check=True)
-        assert (root / 'validated.txt').read_text() == '2\n'
+        assert (root / 'validated.txt').read_text() == '3\n'
         reference_rows = None
-        for ident, cell in [('cd4', 'CD4 T cell'), ('nk', 'NK')]:
+        for ident, cell in [('cd4_fold0', 'CD4 T cell'), ('cd4_fold1', 'CD4 T cell'), ('nk', 'NK')]:
             output = root / ident
             command = [sys.executable, str(scripts / 'score_variants.py'), '--allow-cpu',
                 '--variants', str(variants), '--model', str(model_path), '--peaks', str(peaks),
-                '--genome', str(genome if ident == 'cd4' else compressed_genome), '--chrom-sizes', str(sizes),
+                '--genome', str(genome if ident == 'cd4_fold0' else compressed_genome), '--chrom-sizes', str(sizes),
                 '--model-id', ident, '--cell-type', cell, '--output-dir', str(output), '--threads', '1', '--batch-size', '2']
-            if ident == 'cd4':
+            if ident == 'cd4_fold0':
                 command += ['--genome-index', str(genome) + '.fai']
             # Exercise the optional peak and shuffle arguments on both models.
             command += ['--max-peaks', '2', '--num-shuf', '2']
@@ -82,15 +83,25 @@ def main():
         subprocess.run([sys.executable, str(scripts / 'merge_scores.py'), '--score-files', str(files),
             '--long-output', str(root / 'long.tsv'), '--wide-output', str(root / 'wide.tsv')], check=True)
         with (root / 'long.tsv').open() as stream:
-            assert len(list(csv.DictReader(stream, delimiter='\t'))) == 6
+            assert len(list(csv.DictReader(stream, delimiter='\t'))) == 9
         with (root / 'wide.tsv').open() as stream:
             assert len(list(csv.DictReader(stream, delimiter='\t'))) == 3
+        subprocess.run([sys.executable, str(scripts / 'summarize_folds.py'),
+            '--scores', str(root / 'long.tsv'), '--output', str(root / 'summary.tsv')], check=True)
+        with (root / 'summary.tsv').open() as stream:
+            summary = list(csv.DictReader(stream, delimiter='\t'))
+        assert len(summary) == 6
+        cd4_summary = next(row for row in summary if row['model_group'] == 'cd4' and row['variant_id'] == '001')
+        assert cd4_summary['n_folds'] == '2'
+        np.testing.assert_allclose(float(cd4_summary['logfc.mean']), float(reference_rows[0]['logfc']))
+        assert float(cd4_summary['logfc.sd']) == 0
+        assert not any('pval' in field for field in cd4_summary)
         # A normal run must reject CPU-only hosts.
         command.remove('--allow-cpu')
         command[command.index('--output-dir') + 1] = str(root / 'gpu_required')
         result = subprocess.run(command, capture_output=True, text=True)
         assert result.returncode != 0 and 'GPU is required' in result.stderr
-        print('PASS: TSV manifest, plain and gzip FASTA, optional index, real scorer, merge, and GPU requirement')
+        print('PASS: TSV manifest, plain and gzip FASTA, optional index, real scorer, merge, fold summary, and GPU requirement')
 
 
 if __name__ == '__main__':
