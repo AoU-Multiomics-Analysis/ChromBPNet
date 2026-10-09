@@ -5,6 +5,74 @@ motifs for one cell type using five trained ChromBPNet folds. It uses WDL 1.0.
 The workflow does not train models or annotate variant alleles. Its motif file
 can be used in a later Fi-NeMo analysis of peak or REF/ALT contributions.
 
+For multiple models, use
+[../workflows/discover_motifs_manifest.wdl](../workflows/discover_motifs_manifest.wdl).
+This WDL 1.0 workflow reads the existing model TSV, runs the single-model
+workflow separately for each five-fold model group, and writes two result
+manifests. It uses the same tested motif image and GPU settings.
+
+## Run multiple models from a manifest
+
+Copy [examples/inputs.manifest.json](examples/inputs.manifest.json) and replace
+the example paths and image digest. Supply `model_manifest`, `genome`,
+`chrom_sizes`, `motif_database`, and `docker_image`. The optional FASTA index,
+output `head`, discovery settings, and resource inputs are the same as the
+single-model workflow. The reference and motif database apply to all groups.
+
+The manifest uses the exact four-column header from variant scoring:
+
+```tsv
+model_id	cell_type	model	peaks
+```
+
+See [examples/models.example.tsv](examples/models.example.tsv) for GM12878
+and CD4 Naive groups. The manifests created by `prepare_gm12878.py` and
+`prepare_tenk10k.py` use this format. Include five distinct model URIs per
+group, with IDs ending in `_fold0`, `_fold1`, `_fold2`, `_fold3`, and `_fold4`.
+All five rows must use the same cell-type label and peak URI. Rows may appear
+in any order. The workflow sorts each group's folds before contribution
+scoring. It rejects missing folds, duplicate IDs, repeated model URIs,
+inconsistent cell types or peaks, and unsupported output heads before GPU
+work starts.
+
+Grouping uses the model ID prefix before `_fold`, rather than the cell-type
+label. Two model sets for the same cell type therefore remain separate.
+Each group has its own peak preparation, five GPU contribution tasks,
+fold averaging, MoDISco run, and report. Contributions from different model
+groups are never averaged together. Use `head=counts` or `head=profile` in
+separate submissions if both output heads are required.
+
+The workflow returns:
+
+| Output | Contents |
+| --- | --- |
+| `model_manifest_with_modisco` | `models.with_modisco.tsv`: original fold rows and row order, with `model_group`, `head`, and result-path columns added. All five fold rows link to the same group results. |
+| `modisco_manifest` | `modisco_manifest.tsv`: one row per model group and output head, ordered by model group. |
+| `model_groups` and result arrays | Group labels and corresponding File outputs in the same order, including contributions, motifs, reports, metadata, and logs. |
+
+The result manifest columns are `model_group`, `cell_type`, `head`,
+`modisco_motifs`, `averaged_contributions`, `interpreted_regions`,
+`report_bundle`, `discovered_motifs_meme`, `candidate_tf_matches`,
+`motif_inventory`, and `tomtom_results`. The enriched model manifest adds
+the same result-path columns to the original four columns.
+
+In Terra, the result paths remain Cromwell's cloud output URIs. The final
+manifest task opens only the small input manifest and group plan. It does
+not localize or copy motif, contribution, or report files. The group plan is
+structured metadata containing labels and row indices; it is not a JSON
+argument wrapper. Models and peaks are declared as WDL File values before
+the computation tasks receive them.
+
+Keep the original four-column TSV for variant scoring and future discovery
+runs. The enriched manifest has additional columns and is a results table;
+the existing scoring manifest parser requires exactly four columns.
+
+This wrapper adds WDL tasks with inline Python standard-library commands.
+It does not change image scripts or require a Docker rebuild. GitHub Actions
+checks grouping, output manifests, cloud-to-local input handling, WDL syntax,
+Terra static rules, and Cromwell womtool validation. The complete multi-model
+workflow has not been tested on Terra. No Terra jobs have been submitted.
+
 ## What happens to the five folds
 
 1. A CPU task checks the five model files and the reference. It prepares the

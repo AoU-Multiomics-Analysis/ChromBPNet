@@ -1,0 +1,8 @@
+{
+  "ChromBPNetMotifDiscoveryManifest.model_manifest": "gs://YOUR_BUCKET/chrombpnet/models.tsv",
+  "ChromBPNetMotifDiscoveryManifest.genome": "gs://YOUR_BUCKET/reference/hg38.fa.gz",
+  "ChromBPNetMotifDiscoveryManifest.chrom_sizes": "gs://YOUR_BUCKET/reference/hg38.chrom.sizes",
+  "ChromBPNetMotifDiscoveryManifest.motif_database": "gs://YOUR_BUCKET/motifs/human_motifs.meme",
+  "ChromBPNetMotifDiscoveryManifest.head": "counts",
+  "ChromBPNetMotifDiscoveryManifest.docker_image": "ghcr.io/aou-multiomics-analysis/chrombpnet/motif-discovery@sha256:REPLACE_WITH_TESTED_DIGEST"
+}

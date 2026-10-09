@@ -19,10 +19,12 @@ jobs:
       - run: miniwdl check workflows/merge_variants.wdl
       - run: miniwdl check workflows/summarize_variants.wdl
       - run: miniwdl check workflows/discover_motifs.wdl
+      - run: miniwdl check workflows/discover_motifs_manifest.wdl
       - run: python tests/check_wdl.py workflows/score_variants.wdl
       - run: python tests/check_wdl.py workflows/merge_variants.wdl
       - run: python tests/check_wdl.py workflows/summarize_variants.wdl
       - run: python tests/check_wdl.py workflows/discover_motifs.wdl
+      - run: python tests/check_wdl.py workflows/discover_motifs_manifest.wdl
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -36,3 +38,4 @@ jobs:
           java -jar "$RUNNER_TEMP/womtool-85.jar" validate workflows/merge_variants.wdl
           java -jar "$RUNNER_TEMP/womtool-85.jar" validate workflows/summarize_variants.wdl
           java -jar "$RUNNER_TEMP/womtool-85.jar" validate workflows/discover_motifs.wdl
+          java -jar "$RUNNER_TEMP/womtool-85.jar" validate workflows/discover_motifs_manifest.wdl
