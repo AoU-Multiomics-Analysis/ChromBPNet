@@ -146,7 +146,9 @@ NumPy 1.23.5 is retained for the older Kundaje DeepSHAP fork. The image imports
 the pinned ChromBPNet attribution helpers without installing its legacy
 training dependency stack. The upstream source and license remain in the image.
 Pinned igraph and Leiden wheels avoid the conflicting ICU requirements of
-the MEME and conda graph packages. Discovery metadata records their versions.
+the MEME and conda graph packages. Numba 0.60.0 supports the literal float
+conversion used by MEME-lite. Discovery metadata records the algorithm and
+NumPy versions.
 
 [The image workflow](../.github/workflows/motif-image.yml) runs only when
 `motif_pipeline/scripts/**` changes. It builds on Linux in GitHub Actions and

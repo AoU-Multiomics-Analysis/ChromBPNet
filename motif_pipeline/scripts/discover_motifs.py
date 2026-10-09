@@ -38,7 +38,7 @@ def main():
     with h5py.File(args.output, 'r') as handle:
         patterns = [f'{group}.{name}' for group in ['pos_patterns', 'neg_patterns']
                     if group in handle for name in handle[group]]
-    versions = {name: importlib.metadata.version(name) for name in ['modisco', 'igraph', 'leidenalg']}
+    versions = {name: importlib.metadata.version(name) for name in ['modisco', 'igraph', 'leidenalg', 'numba', 'numpy']}
     print(f'[modisco] Algorithm versions: {versions}', flush=True)
     write_json(args.metadata, dict(versions=versions, modisco=versions['modisco'],
                                   window=args.window, max_seqlets=args.max_seqlets,
