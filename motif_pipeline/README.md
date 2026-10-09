@@ -151,7 +151,9 @@ the MEME and conda graph packages. Discovery metadata records their versions.
 [The image workflow](../.github/workflows/motif-image.yml) runs only when
 `motif_pipeline/scripts/**` changes. It builds on Linux in GitHub Actions and
 runs actual counts and profile DeepSHAP, five-fold averaging, TF-MoDISco,
-Tomtom, and reporting on synthetic data. It also checks that CPU use is rejected by default.
+Tomtom, and reporting on synthetic data. The read-only BuildKit test mount
+does not add test files to the image. Tests run before image export and
+publication. They also check that CPU use is rejected by default.
 No local Docker build is required. Recipe-only, test-only, and WDL-only
 changes do not trigger a rebuild; include the related script change when an
 image recipe or package update is needed.

@@ -5,7 +5,6 @@ import importlib.metadata
 import json
 import shutil
 from pathlib import Path
-from types import SimpleNamespace
 
 import h5py
 import numpy as np
@@ -53,9 +52,13 @@ def main():
         tf.config.experimental.set_memory_growth(gpu, True)
     import shap
     from deeplift.dinuc_shuffle import dinuc_shuffle
-    from chrombpnet.evaluation.interpret import input_utils, shap_utils
+    from chrombpnet.evaluation.interpret import shap_utils
+    from chrombpnet.training.utils import losses, one_hot
     from pyfaidx import Fasta
-    model = input_utils.load_model_wrapper(SimpleNamespace(model_h5=str(args.model)))
+    # Same loader settings as pinned input_utils.load_model_wrapper, without
+    # importing data_utils and its unused training-only BigWig reader.
+    tf.keras.utils.get_custom_objects().update({'multinomial_nll': losses.multinomial_nll, 'tf': tf})
+    model = tf.keras.models.load_model(str(args.model), compile=False)
     input_length = preparation['input_length']
     if model.input_shape != (None, input_length, 4) or len(model.outputs) != 2:
         raise ValueError('Use a standard bias-corrected ChromBPNet model with profile and counts outputs')
@@ -88,7 +91,7 @@ def main():
                 if len(sequence) != input_length:
                     raise ValueError('Prepared peak has an incomplete sequence window')
                 sequences.append(sequence)
-            encoded = input_utils.one_hot.dna_to_one_hot(sequences).astype(np.float32)
+            encoded = one_hot.dna_to_one_hot(sequences).astype(np.float32)
             scores = explainer.shap_values(encoded, progress_message=100)
             if isinstance(scores, list):
                 if len(scores) != 1:

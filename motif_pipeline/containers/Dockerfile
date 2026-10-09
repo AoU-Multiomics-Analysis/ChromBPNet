@@ -34,3 +34,8 @@ COPY --chown=$MAMBA_USER:$MAMBA_USER motif_pipeline/scripts /opt/motif_pipeline/
 RUN python /opt/motif_pipeline/scripts/expose_cuda.py \
     && python -m pip check
 WORKDIR /tmp
+
+# GitHub runs the real CPU smoke test before image export. The read-only
+# BuildKit mount does not add test files or generated models to the image.
+RUN --mount=type=bind,source=tests,target=/tests \
+    python /tests/smoke_motif_image.py
