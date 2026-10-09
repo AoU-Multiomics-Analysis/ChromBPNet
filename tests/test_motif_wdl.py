@@ -80,6 +80,8 @@ class MotifWDLTests(unittest.TestCase):
                 cloud_args[name] = clouds
         env = WDL.values_from_json(cloud_args, task.available_inputs, task.required_inputs)
         env = WDL.Value.rewrite_env_paths(env, lambda file: mapping[file.value])
+        for decl in task.postinputs:
+            env = env.bind(decl.name, decl.expr.eval(env, LocalStdLib('1.0')).coerce(decl.type))
         return self.local_commands(task.command.eval(env, CloudGeneratedFileStdLib('1.0', root)).value)
 
     def test_preparation_cloud_localization_with_and_without_index(self):
@@ -186,6 +188,8 @@ class MotifWDLTests(unittest.TestCase):
                     expected_folds=5, chunk_rows=1, memory_gb=8, disk_gb=100)
         env = WDL.values_from_json(args, task.available_inputs, task.required_inputs)
         env = WDL.Value.rewrite_env_paths(env, lambda file: mapping[file.value])
+        for decl in task.postinputs:
+            env = env.bind(decl.name, decl.expr.eval(env, LocalStdLib('1.0')).coerce(decl.type))
         command = task.command.eval(env, CloudGeneratedFileStdLib('1.0', fixture.root)).value
         entrypoint = shlex.quote(sys.executable) + ' ' + shlex.quote(str(ROOT / 'motif_pipeline/scripts/average_contributions.py'))
         command = command.replace('python /opt/motif_pipeline/scripts/average_contributions.py', entrypoint)

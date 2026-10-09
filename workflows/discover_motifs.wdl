@@ -140,16 +140,17 @@ task PrepareMotifInputs {
         Int? max_peaks
         String docker_image
     }
+    Boolean five_fold_models = length(fold_models) == 5
     command <<<
         set -euo pipefail
         exec > >(tee prepare.log) 2>&1
         echo '[prepare] Start five-fold validation and common peak preparation'
         python /opt/motif_pipeline/scripts/write_file_list.py --output models.list \
-            ~{if (length(fold_models) == 5) then "--file '" + sub(fold_models[0], "'", "'\"'\"'") + "'" else ""} \
-            ~{if (length(fold_models) == 5) then "--file '" + sub(fold_models[1], "'", "'\"'\"'") + "'" else ""} \
-            ~{if (length(fold_models) == 5) then "--file '" + sub(fold_models[2], "'", "'\"'\"'") + "'" else ""} \
-            ~{if (length(fold_models) == 5) then "--file '" + sub(fold_models[3], "'", "'\"'\"'") + "'" else ""} \
-            ~{if (length(fold_models) == 5) then "--file '" + sub(fold_models[4], "'", "'\"'\"'") + "'" else ""}
+            ~{if five_fold_models then "--file '" + sub(fold_models[0], "'", "'\"'\"'") + "'" else ""} \
+            ~{if five_fold_models then "--file '" + sub(fold_models[1], "'", "'\"'\"'") + "'" else ""} \
+            ~{if five_fold_models then "--file '" + sub(fold_models[2], "'", "'\"'\"'") + "'" else ""} \
+            ~{if five_fold_models then "--file '" + sub(fold_models[3], "'", "'\"'\"'") + "'" else ""} \
+            ~{if five_fold_models then "--file '" + sub(fold_models[4], "'", "'\"'\"'") + "'" else ""}
         python /opt/motif_pipeline/scripts/prepare_motif_inputs.py \
             --models-list models.list \
             --peaks '~{sub(peaks, "'", "'\"'\"'")}' \
@@ -253,22 +254,24 @@ task AverageContributions {
         Int disk_gb
         String docker_image
     }
+    Boolean five_score_files = length(score_files) == 5
+    Boolean five_region_files = length(region_files) == 5
     command <<<
         set -euo pipefail
         exec > >(tee average.log) 2>&1
         echo '[average] Create task-local lists from localized File inputs'
         python /opt/motif_pipeline/scripts/write_file_list.py --output scores.list \
-            ~{if (length(score_files) == 5) then "--file '" + sub(score_files[0], "'", "'\"'\"'") + "'" else ""} \
-            ~{if (length(score_files) == 5) then "--file '" + sub(score_files[1], "'", "'\"'\"'") + "'" else ""} \
-            ~{if (length(score_files) == 5) then "--file '" + sub(score_files[2], "'", "'\"'\"'") + "'" else ""} \
-            ~{if (length(score_files) == 5) then "--file '" + sub(score_files[3], "'", "'\"'\"'") + "'" else ""} \
-            ~{if (length(score_files) == 5) then "--file '" + sub(score_files[4], "'", "'\"'\"'") + "'" else ""}
+            ~{if five_score_files then "--file '" + sub(score_files[0], "'", "'\"'\"'") + "'" else ""} \
+            ~{if five_score_files then "--file '" + sub(score_files[1], "'", "'\"'\"'") + "'" else ""} \
+            ~{if five_score_files then "--file '" + sub(score_files[2], "'", "'\"'\"'") + "'" else ""} \
+            ~{if five_score_files then "--file '" + sub(score_files[3], "'", "'\"'\"'") + "'" else ""} \
+            ~{if five_score_files then "--file '" + sub(score_files[4], "'", "'\"'\"'") + "'" else ""}
         python /opt/motif_pipeline/scripts/write_file_list.py --output regions.list \
-            ~{if (length(region_files) == 5) then "--file '" + sub(region_files[0], "'", "'\"'\"'") + "'" else ""} \
-            ~{if (length(region_files) == 5) then "--file '" + sub(region_files[1], "'", "'\"'\"'") + "'" else ""} \
-            ~{if (length(region_files) == 5) then "--file '" + sub(region_files[2], "'", "'\"'\"'") + "'" else ""} \
-            ~{if (length(region_files) == 5) then "--file '" + sub(region_files[3], "'", "'\"'\"'") + "'" else ""} \
-            ~{if (length(region_files) == 5) then "--file '" + sub(region_files[4], "'", "'\"'\"'") + "'" else ""}
+            ~{if five_region_files then "--file '" + sub(region_files[0], "'", "'\"'\"'") + "'" else ""} \
+            ~{if five_region_files then "--file '" + sub(region_files[1], "'", "'\"'\"'") + "'" else ""} \
+            ~{if five_region_files then "--file '" + sub(region_files[2], "'", "'\"'\"'") + "'" else ""} \
+            ~{if five_region_files then "--file '" + sub(region_files[3], "'", "'\"'\"'") + "'" else ""} \
+            ~{if five_region_files then "--file '" + sub(region_files[4], "'", "'\"'\"'") + "'" else ""}
         python /opt/motif_pipeline/scripts/average_contributions.py \
             --scores-list scores.list \
             --regions-list regions.list \
