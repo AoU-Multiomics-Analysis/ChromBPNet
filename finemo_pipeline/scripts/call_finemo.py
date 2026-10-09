@@ -43,21 +43,23 @@ def main():
         signal = signal * arrays['sequences']
     active = np.flatnonzero(np.any(signal != 0, axis=(1, 2)))
     if len(active):
-        np.savez_compressed(output / 'active.npz', **{key: value[active] for key, value in arrays.items()})
+        active_arrays = {key: value[active] for key, value in arrays.items()}
+        if 'peak_id' in active_arrays:
+            active_arrays['peak_id'] = np.arange(len(active), dtype=np.uint32)
+        np.savez_compressed(output / 'active.npz', **active_arrays)
         finemo.call_hits(str(output / 'active.npz'), None, str(args.motifs), None, None, None, None,
                         str(output), cwm_trim_threshold_default=args.trim_threshold,
                         lambda_default=args.global_lambda, batch_size=args.batch_size, max_steps=args.max_steps,
                         mode=args.mode, device='cpu' if args.allow_cpu and not torch.cuda.is_available() else None)
-        # Without absolute coordinates Fi-NeMo assigns row IDs after subsetting.
-        # Restore the original REF/ALT row index before comparison.
-        if 'chr' not in arrays:
-            for name in ['hits.tsv', 'peaks_qc.tsv']:
-                rows = read_table(output / name)
-                for row in rows:
-                    row['peak_id'] = str(active[int(row['peak_id'])])
-                with (output / name).open() as stream:
-                    fields = stream.readline().rstrip('\n').split('\t')
-                write_table(output / name, rows, fields)
+        # Fi-NeMo fitting uses contiguous local row IDs. Restore the original
+        # input row ID for both allele and genomic-coordinate input files.
+        for name in ['hits.tsv', 'hits_unique.tsv', 'peaks_qc.tsv']:
+            rows = read_table(output / name)
+            for row in rows:
+                row['peak_id'] = str(active[int(row['peak_id'])])
+            with (output / name).open() as stream:
+                fields = stream.readline().rstrip('\n').split('\t')
+            write_table(output / name, rows, fields)
         (output / 'active.npz').unlink()
     else:
         write_table(output / 'hits.tsv', [], list(data_io.HITS_DTYPES))

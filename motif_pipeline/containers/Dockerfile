@@ -38,4 +38,5 @@ WORKDIR /tmp
 # GitHub runs the real CPU smoke test before image export. The read-only
 # BuildKit mount does not add test files or generated models to the image.
 RUN --mount=type=bind,source=tests,target=/tests \
-    python /tests/smoke_motif_image.py
+    python /tests/smoke_motif_image.py \
+    && python /tests/smoke_variant_motif_image.py

@@ -19,7 +19,7 @@ def read_variants(path):
     rows, seen = [], set()
     with readable(path).open() as stream:
         for values in csv.reader(stream, delimiter='\t'):
-            if len(values) != 5 or any(not v for v in values):
+            if len(values) != 5 or any(not v or any(c in v for c in '\t\r\n') for v in values):
                 raise ValueError('Variants require five nonempty headerless TSV fields')
             row = dict(zip(FIELDS, values))
             if not row['pos'].isdigit() or int(row['pos']) < 1 or row['variant_id'] in seen:
@@ -35,6 +35,8 @@ def prepare_variants(path, genome, width, shard_size, output, cell_type, head, m
     if shard_size < 1:
         raise ValueError('Shard size must be positive')
     rows = read_variants(path)
+    if len(rows) > shard_size * 128:
+        raise ValueError('The WDL merge supports at most 128 shards; increase shard_size')
     for shard, begin in enumerate(range(0, len(rows), shard_size)):
         sequences, maps, records = [], [], []
         for row in rows[begin:begin + shard_size]:
