@@ -24,8 +24,9 @@ jobs:
           platforms: linux/amd64
           load: true
           tags: ${{ env.MOTIF_IMAGE }}:${{ github.sha }}
-          cache-from: type=gha,scope=motif-discovery
-          cache-to: type=gha,scope=motif-discovery,mode=max
+          cache-from: type=gha,scope=motif-discovery,timeout=2m
+          # Cache uploads are optional; they must not prevent the real image test.
+          cache-to: type=gha,scope=motif-discovery,mode=max,timeout=2m,ignore-error=true
       - name: Test real attribution, averaging, discovery, and reporting (CPU)
         run: >-
           docker run --rm --user 0
