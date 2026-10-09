@@ -49,10 +49,12 @@ workflow ChromBPNetMotifDiscoveryManifest {
 
     scatter (group in groups) {
         String model_group = group.model_group
-        scatter (index in group.indices) {
+        Array[Int] group_indices = group.indices
+        Int peak_index = group_indices[0]
+        scatter (index in group_indices) {
             File group_models = manifest_rows[index][2]
         }
-        File group_peaks = manifest_rows[group.indices[0]][3]
+        File group_peaks = manifest_rows[peak_index][3]
 
         call motifs.ChromBPNetMotifDiscovery as ModelMotifs {
             input:

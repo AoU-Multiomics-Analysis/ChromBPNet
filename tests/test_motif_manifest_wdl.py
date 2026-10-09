@@ -124,6 +124,11 @@ class MotifManifestWDLTests(unittest.TestCase):
                  cell_type=WDL.Value.String('GM12878'), indices=WDL.Value.Array(WDL.Type.Int(),
                     [WDL.Value.Int(i) for i in [2, 6, 0, 8, 4]])))
         env = WDL.Env.Bindings().bind('manifest_rows', rows).bind('group', group)
+        for decl in scatter.body:
+            if decl is peaks_decl:
+                break
+            if isinstance(decl, WDL.Tree.Decl):
+                env = env.bind(decl.name, decl.expr.eval(env, LocalStdLib('1.0')).coerce(decl.type))
         model = model_decl.expr.eval(env.bind('index', WDL.Value.Int(2)), LocalStdLib('1.0')).coerce(model_decl.type)
         peaks = peaks_decl.expr.eval(env, LocalStdLib('1.0')).coerce(peaks_decl.type)
         self.assertIsInstance(model, WDL.Value.File)
