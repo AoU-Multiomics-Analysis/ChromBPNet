@@ -119,6 +119,18 @@ class MotifPipelineTests(unittest.TestCase):
             with self.subTest(row=row), self.assertRaises(ValueError):
                 prepare_peaks(path, {'chr1': 100}, 32, self.root / 'out.bed')
 
+    def test_discovery_explains_empty_threshold_distribution(self):
+        from unittest.mock import patch
+        from discover_motifs import main
+        raw = np.eye(4, dtype=np.int8)[np.arange(64) % 4].T[None]
+        source, _ = self.fixture(0, raw=raw)
+        argv = ['discover_motifs.py', '--contributions', str(source), '--window', '40',
+                '--output', str(self.root / 'motifs.h5'), '--metadata', str(self.root / 'metadata.json')]
+        with patch.object(sys, 'argv', argv), patch('discover_motifs.shutil.which', return_value='/fake/modisco'), \
+                patch('discover_motifs.runpy.run_path', side_effect=ValueError('Found array with 0 sample(s)')):
+            with self.assertRaisesRegex(ValueError, 'empty threshold-fitting distribution'):
+                main()
+
     def test_cloud_paths_fail_as_localization_errors(self):
         from motif_io import readable, read_file_list
         for value in ['gs://bucket/model.h5', 's3://bucket/scores.h5', 'https://example.org/x']:

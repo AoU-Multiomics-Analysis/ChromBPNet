@@ -28,6 +28,7 @@ def main():
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         motif = 'ACGTCAGTGCAT'
+        repressor = 'TGACGTTCAGGC'
         rng = np.random.default_rng(42)
         nregions, width = 128, 512
         regions = []
@@ -35,8 +36,8 @@ def main():
         alphabet = np.array(list('ACGT'))
         for i in range(nregions):
             sequence = alphabet[rng.integers(0, 4, width)]
-            for offset in [190, 290]:
-                sequence[offset:offset + len(motif)] = list(motif)
+            for offset, planted in [(190, motif), (290, repressor)]:
+                sequence[offset:offset + len(planted)] = list(planted)
             regions.append(''.join(sequence))
             center = i * width + width // 2
             peak_lines.append(f'chr1\t{center - 20}\t{center + 20}\tp{i}\t0\t.\t0\t0\t0\t20\n')
@@ -50,15 +51,16 @@ def main():
         models = []
         for fold in range(5):
             inputs = tf.keras.Input(shape=(width, 4))
-            conv = tf.keras.layers.Conv1D(1, len(motif), activation='relu', name='motif')(inputs)
+            conv = tf.keras.layers.Conv1D(2, len(motif), activation='relu', name='motif')(inputs)
             profile = tf.keras.layers.Flatten(name='profile')(conv)
             counts = tf.keras.layers.Dense(1, name='counts')(tf.keras.layers.GlobalAveragePooling1D()(conv))
             model = tf.keras.Model(inputs, [profile, counts])
-            kernel = np.zeros((len(motif), 4, 1), dtype=np.float32)
-            for i, base in enumerate(motif):
-                kernel[i, 'ACGT'.index(base), 0] = 1
-            model.get_layer('motif').set_weights([kernel, np.array([-len(motif) + 0.5], dtype=np.float32)])
-            model.get_layer('counts').set_weights([np.array([[2000 + fold * 100]], dtype=np.float32), np.zeros(1, dtype=np.float32)])
+            kernel = np.zeros((len(motif), 4, 2), dtype=np.float32)
+            for channel, planted in enumerate([motif, repressor]):
+                for i, base in enumerate(planted):
+                    kernel[i, 'ACGT'.index(base), channel] = 1
+            model.get_layer('motif').set_weights([kernel, np.full(2, -len(motif) + 0.5, dtype=np.float32)])
+            model.get_layer('counts').set_weights([np.array([[2000 + fold * 100], [-1600 - fold * 100]], dtype=np.float32), np.zeros(1, dtype=np.float32)])
             path = root / f"model ' $(touch NEVER) fold{fold}.h5"
             model.save(path, include_optimizer=False)
             models.append(path)
@@ -116,6 +118,8 @@ def main():
             expected = np.mean(np.stack(fold_arrays), axis=0)
             np.testing.assert_allclose(handle['shap/seq'][:], expected, rtol=1e-5, atol=1e-7)
             assert handle['raw/seq'].shape == (nregions, 4, width)
+            projected = handle['projected_shap/seq'][:]
+            assert projected.min() < 0 < projected.max()
         results = root / 'modisco_results.h5'
         run('discover_motifs.py', '--contributions', average, '--output', results,
             '--metadata', root / 'discovery.json', '--max-seqlets', '4096', '--n-leiden', '1')

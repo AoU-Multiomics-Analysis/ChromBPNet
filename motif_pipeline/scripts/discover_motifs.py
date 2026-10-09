@@ -34,7 +34,13 @@ def main():
     sys.argv = [binary, 'motifs', '-i', str(source), '-n', str(args.max_seqlets),
                 '-w', str(args.window), '-l', str(args.n_leiden), '-o', args.output, '-v']
     print('[modisco] Start motif discovery on fold-averaged contributions', flush=True)
-    runpy.run_path(binary, run_name='__main__')
+    try:
+        runpy.run_path(binary, run_name='__main__')
+    except ValueError as error:
+        if '0 sample(s)' in str(error):
+            raise ValueError('TF-MoDISco has an empty threshold-fitting distribution; '
+                             'check that signed projected contributions contain positive and negative effects') from error
+        raise
     with h5py.File(args.output, 'r') as handle:
         patterns = [f'{group}.{name}' for group in ['pos_patterns', 'neg_patterns']
                     if group in handle for name in handle[group]]
