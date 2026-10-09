@@ -1,5 +1,16 @@
 version: 1.2
 workflows:
+  - name: chrombpnet-motif-discovery
+    subclass: WDL
+    primaryDescriptorPath: /workflows/discover_motifs.wdl
+    testParameterFiles:
+      - /motif_pipeline/examples/inputs.cd4.json
+    readMePath: /motif_pipeline/README.md
+    publish: true
+    filters:
+      branches:
+        - main
+    topic: Five-fold ChromBPNet contribution averaging, TF-MoDISco discovery, and candidate TF motif annotation.
   - name: chrombpnet-variant-scoring
     subclass: WDL
     primaryDescriptorPath: /workflows/score_variants.wdl
