@@ -1,5 +1,8 @@
 FROM mambaorg/micromamba:2.3.2
 
+# CUDA wheels are large. Do not retain their downloaded archives in the image.
+ENV PIP_NO_CACHE_DIR=1
+
 COPY --chown=$MAMBA_USER:$MAMBA_USER motif_pipeline/containers/environment.yml /tmp/motif-environment.yml
 RUN micromamba install --yes --name base --file /tmp/motif-environment.yml \
     && micromamba clean --all --yes
