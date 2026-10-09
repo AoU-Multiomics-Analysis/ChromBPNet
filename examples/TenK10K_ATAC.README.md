@@ -88,7 +88,9 @@ localization. This preparation tool does not require a WDL or image change.
 
 All other inputs can use the existing settings. The full manifest starts one
 GPU scoring task for each of the 130 models. The workflow keeps folds separate
-in the merged effects; it does not average their scores.
+in the long and wide merged effects. A separate summary task averages the five
+folds within each cell type's model group and adds `in_peak` from its supplied
+peak file. The final task combines those summaries without averaging cell types.
 
 `sources.json` records the source revision, source checksums, converted peak
 counts and checksums, and cell types without models. It is source data provenance,

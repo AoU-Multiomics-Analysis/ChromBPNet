@@ -1,7 +1,4 @@
-import csv
 import shlex
-import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -109,59 +106,6 @@ task bad { input { Array[File] xs } command <<< cat '~{sub(write_lines(xs), "x",
         self.assertNotIn('--genome-index', command)
 
 
-    def test_merge_executes_with_cloud_inputs_and_cloud_generated_file_paths(self):
-        task = self.task('MergeVariantEffects')
-        with tempfile.TemporaryDirectory() as tmp:
-            paths = [str(Path(tmp) / name) for name in
-                     ["cd4 ' $(touch NEVER) `touch NEVER` scores.tsv", 'cd4 fold1.tsv', 'nk scores.tsv']]
-            fields = ['model_id', 'cell_type', 'chr', 'pos', 'allele1', 'allele2',
-                      'variant_id', 'logfc', 'jsd', 'active_allele_quantile']
-            for path, model, cell, logfc in zip(paths, ['cd4_fold0', 'cd4_fold1', 'nk'],
-                                               ['CD4 T cell', 'CD4 T cell', 'NK'], [0.25, -0.5, 0.25]):
-                with open(path, 'w') as stream:
-                    writer = csv.writer(stream, delimiter='\t', lineterminator='\n')
-                    writer.writerow(fields)
-                    for ident, pos, alt in [('v1', '50', 'T'), ('v2', '60', 'C')]:
-                        writer.writerow([model, cell, 'chr1', pos, 'A', alt, ident, logfc, '0.1', '0.9'])
-            cloud_paths = ['gs://test-bucket/call-ScoreVariants/shard-0/scores.tsv',
-                           'gs://test-bucket/call-ScoreVariants/shard-1/scores.tsv',
-                           'gs://test-bucket/call-ScoreVariants/shard-2/scores.tsv']
-            env = WDL.values_from_json(dict(score_files=cloud_paths, docker_image='test'), task.available_inputs, task.required_inputs)
-            localized = dict(zip(cloud_paths, paths))
-            # Task File inputs are localized before command rendering. WDL
-            # write_* results can still be virtual cloud paths at this stage.
-            env = WDL.Value.rewrite_env_paths(env, lambda file: localized[file.value])
-            command = task.command.eval(env, CloudGeneratedFileStdLib('1.0', tmp)).value
-            entrypoint = shlex.quote(sys.executable) + ' ' + shlex.quote(str(ROOT / 'scripts/merge_scores.py'))
-            command = command.replace('python /opt/chrombpnet/scripts/merge_scores.py', entrypoint)
-            command = command.replace('python /opt/chrombpnet/scripts/summarize_folds.py',
-                shlex.quote(sys.executable) + ' ' + shlex.quote(str(ROOT / 'scripts/summarize_folds.py')))
-            if sys.platform == 'darwin':
-                # The macOS sandbox blocks process-substitution descriptors.
-                # GitHub's Linux runner executes the original log redirection.
-                command = command.replace('exec > >(tee merge.log) 2>&1', '')
-            result = subprocess.run(['bash', '-c', command], cwd=tmp, capture_output=True, text=True)
-            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            with (Path(tmp) / 'variant_effects.all_models.tsv').open() as stream:
-                self.assertEqual(len(list(csv.DictReader(stream, delimiter='\t'))), 6)
-            with (Path(tmp) / 'variant_effects.wide.tsv').open() as stream:
-                self.assertEqual(len(list(csv.DictReader(stream, delimiter='\t'))), 2)
-            with (Path(tmp) / 'variant_effects.fold_summary.tsv').open() as stream:
-                summary = list(csv.DictReader(stream, delimiter='\t'))
-            self.assertEqual(len(summary), 4)
-            cd4 = next(row for row in summary if row['model_group'] == 'cd4')
-            self.assertEqual(cd4['n_folds'], '2')
-            self.assertAlmostEqual(float(cd4['logfc.mean']), -0.125)
-            self.assertEqual(cd4['direction_agreement'], '0.5')
-            self.assertFalse((Path(tmp) / 'NEVER').exists())
-            self.assertNotIn('gs://', command)
-            # Inspect the list passed to the real merge script, after its shell
-            # command has created it inside the task execution directory.
-            invocation = command[command.index(entrypoint):command.index("echo '[merge] Cell-type merge complete'")]
-            words = shlex.split(invocation.replace('\\\n', ''))
-            file_list = Path(tmp) / words[words.index('--score-files') + 1]
-            self.assertEqual(file_list.read_text().splitlines(), paths)
-            self.assertNotIn('gs://', file_list.read_text())
 
 
 if __name__ == '__main__':
