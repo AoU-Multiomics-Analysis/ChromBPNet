@@ -145,11 +145,13 @@ attribution source at commit `09938fdb4397ec0006510e5251e48920a505d4de`.
 NumPy 1.23.5 is retained for the older Kundaje DeepSHAP fork. The image imports
 the pinned ChromBPNet attribution helpers without installing its legacy
 training dependency stack. The upstream source and license remain in the image.
+Pinned igraph and Leiden wheels avoid the conflicting ICU requirements of
+the MEME and conda graph packages. Discovery metadata records their versions.
 
 [The image workflow](../.github/workflows/motif-image.yml) runs only when
 `motif_pipeline/scripts/**` changes. It builds on Linux in GitHub Actions and
-runs actual DeepSHAP, five-fold averaging, TF-MoDISco, Tomtom, and reporting
-on synthetic data. It also checks that CPU use is rejected by default.
+runs actual counts and profile DeepSHAP, five-fold averaging, TF-MoDISco,
+Tomtom, and reporting on synthetic data. It also checks that CPU use is rejected by default.
 No local Docker build is required. Recipe-only, test-only, and WDL-only
 changes do not trigger a rebuild; include the related script change when an
 image recipe or package update is needed.
@@ -162,9 +164,12 @@ registry. The existing `variant-scoring` image is not changed by this workflow.
 
 The script/WDL workflow runs unit tests, miniwdl validation, static checks
 against workflow-scope file writes, and Cromwell womtool 85 validation.
-Regression tests map cloud File inputs to local paths before rendering the
-averaging command, then run the real averaging script. They also check shell
-quoting and optional CLI arguments.
+Regression tests map cloud File inputs to local paths before rendering every
+task command. They run the real preparation and averaging scripts, and check
+readable CLI paths for the remaining tasks. Preparation covers the optional
+FASTA index. File lists are written within task commands from individually
+quoted paths. A regression test checks that paths with line breaks cannot
+run shell commands or enter these lists.
 
 **The complete workflow has not been tested on Terra.** Local syntax checks
 and the GitHub CPU smoke test do not validate managed Cromwell localization,

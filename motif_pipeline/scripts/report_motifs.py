@@ -2,6 +2,7 @@
 import argparse
 import csv
 import importlib.metadata
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -91,12 +92,13 @@ def main():
         writer.writerows(inventory)
     print('[report] Generate TF-MoDISco report and motif logos', flush=True)
     subprocess.run(['modisco', 'report', '-i', 'modisco_results.h5', '-o', 'report',
-                    '-s', './', '-m', 'known_motifs.meme', '-n', str(args.n_matches)], cwd=output, check=True)
+                    '-s', './', '-m', 'known_motifs.meme', '-n', str(args.n_matches)],
+                   cwd=output, env=dict(os.environ, MPLBACKEND='Agg'), check=True)
     write_json(output / 'report_metadata.json', dict(
         modisco=importlib.metadata.version('modisco'), motif_database_sha256=sha256(database),
         pattern_count=len(inventory), significant_match_count=len(matches), match_qvalue=args.match_qvalue,
         annotation='candidate TF motif similarity; not proof of TF occupancy',
-        tomtom_distance='pearson', min_overlap=5, trim_threshold=0.3))
+        tomtom_distance='pearson', min_overlap=5, trim_threshold=0.3, plotting_backend='Agg'))
     shutil.make_archive(str(output / 'report_bundle'), 'zip', root_dir=output,
                         base_dir='report')
     print(f'[report] Complete: {len(matches)} candidate motif matches', flush=True)

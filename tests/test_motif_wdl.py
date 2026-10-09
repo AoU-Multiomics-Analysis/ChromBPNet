@@ -169,7 +169,7 @@ class MotifWDLTests(unittest.TestCase):
             command = self.render_cloud('AverageContributions', args, root)
             result = subprocess.run(['bash', '-c', command], cwd=root, capture_output=True, text=True)
             self.assertNotEqual(result.returncode, 0)
-            self.assertIn('invalid path', result.stderr)
+            self.assertIn('invalid path', result.stdout + result.stderr)
             self.assertFalse((root / 'NEVER').exists())
             self.assertFalse((root / 'scores.list').exists())
 
