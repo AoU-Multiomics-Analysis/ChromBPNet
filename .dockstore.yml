@@ -1,5 +1,28 @@
 version: 1.2
 workflows:
+  - name: chrombpnet-finemo-variant-motifs
+    subclass: WDL
+    primaryDescriptorPath: /workflows/annotate_variant_motifs.wdl
+    testParameterFiles:
+      - /finemo_pipeline/examples/inputs.variants.cd4.json
+    readMePath: /finemo_pipeline/README.md
+    otherFiles:
+      - /workflows/discover_motifs.wdl
+      - /workflows/call_motifs.wdl
+    publish: true
+    filters:
+      branches: [main]
+    topic: Five-fold REF/ALT contributions, Fi-NeMo motif gains and losses, and candidate TF annotation.
+  - name: chrombpnet-finemo-peak-motifs
+    subclass: WDL
+    primaryDescriptorPath: /workflows/call_motifs.wdl
+    testParameterFiles:
+      - /finemo_pipeline/examples/inputs.peaks.cd4.json
+    readMePath: /finemo_pipeline/README.md
+    publish: true
+    filters:
+      branches: [main]
+    topic: Fi-NeMo motif instances in averaged ChromBPNet peak contributions.
   - name: chrombpnet-motif-discovery
     subclass: WDL
     primaryDescriptorPath: /workflows/discover_motifs.wdl

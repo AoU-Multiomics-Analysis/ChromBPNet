@@ -28,6 +28,9 @@ def average_contributions(files, regions, output, output_regions, expected_folds
                 raise ValueError('Fold contribution dimensions differ')
             if len(reference_regions.splitlines()) != shape[0]:
                 raise ValueError('Region count and contribution array row count differ')
+            region_hash = sha256(regions[0])
+            if any(h.attrs.get('region_sha256') != region_hash for h in handles):
+                raise ValueError('Fold contribution row identity differs from the region files')
             for key in ['head', 'cell_type']:
                 if key not in handles[0].attrs or any(h.attrs.get(key) != handles[0].attrs[key] for h in handles[1:]):
                     raise ValueError(f'Fold {key} values differ or are missing')
@@ -39,7 +42,8 @@ def average_contributions(files, regions, output, output_regions, expected_folds
             target = stack.enter_context(h5py.File(temporary, 'w'))
             create_contribution_datasets(target, shape, chunk_rows)
             target.attrs.update(head=handles[0].attrs['head'], cell_type=handles[0].attrs['cell_type'],
-                                fold_count=expected_folds, base_order='ACGT', averaging='arithmetic_mean_signed')
+                                fold_count=expected_folds, base_order='ACGT', averaging='arithmetic_mean_signed',
+                                region_sha256=region_hash)
             for start in range(0, shape[0], chunk_rows):
                 stop = min(start + chunk_rows, shape[0])
                 raw = handles[0]['raw/seq'][start:stop]

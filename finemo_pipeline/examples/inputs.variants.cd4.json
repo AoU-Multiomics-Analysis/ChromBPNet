@@ -1,0 +1,22 @@
+{
+  "ChromBPNetVariantMotifs.fold_models": [
+    "gs://YOUR_BUCKET/CD4_Naive/fold_0/chrombpnet.h5",
+    "gs://YOUR_BUCKET/CD4_Naive/fold_1/chrombpnet.h5",
+    "gs://YOUR_BUCKET/CD4_Naive/fold_2/chrombpnet.h5",
+    "gs://YOUR_BUCKET/CD4_Naive/fold_3/chrombpnet.h5",
+    "gs://YOUR_BUCKET/CD4_Naive/fold_4/chrombpnet.h5"
+  ],
+  "ChromBPNetVariantMotifs.variants": "gs://YOUR_BUCKET/variants.tsv",
+  "ChromBPNetVariantMotifs.genome": "gs://YOUR_BUCKET/hg38.fa.gz",
+  "ChromBPNetVariantMotifs.chrom_sizes": "gs://YOUR_BUCKET/hg38.chrom.sizes",
+  "ChromBPNetVariantMotifs.motifs": "gs://YOUR_BUCKET/CD4_Naive/counts/modisco_results.h5",
+  "ChromBPNetVariantMotifs.motif_provenance": "gs://YOUR_BUCKET/CD4_Naive/counts/preparation.json",
+  "ChromBPNetVariantMotifs.tf_matches": "gs://YOUR_BUCKET/CD4_Naive/counts/candidate_tf_matches.tsv",
+  "ChromBPNetVariantMotifs.cell_type": "CD4_Naive",
+  "ChromBPNetVariantMotifs.head": "counts",
+  "ChromBPNetVariantMotifs.contribution_image": "ghcr.io/aou-multiomics-analysis/chrombpnet/motif-discovery@sha256:REPLACE_WITH_TESTED_DIGEST",
+  "ChromBPNetVariantMotifs.finemo_image": "ghcr.io/aou-multiomics-analysis/chrombpnet/finemo@sha256:REPLACE_WITH_TESTED_DIGEST",
+  "ChromBPNetVariantMotifs.shard_size": 500,
+  "ChromBPNetVariantMotifs.global_lambda": 0.7,
+  "ChromBPNetVariantMotifs.pairing_tolerance": 3
+}
