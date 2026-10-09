@@ -1,5 +1,19 @@
 version: 1.2
 workflows:
+  - name: chrombpnet-motif-discovery-manifest
+    subclass: WDL
+    primaryDescriptorPath: /workflows/discover_motifs_manifest.wdl
+    testParameterFiles:
+      - /motif_pipeline/examples/inputs.manifest.json
+    readMePath: /motif_pipeline/README.md
+    otherFiles:
+      - /workflows/discover_motifs.wdl
+      - /motif_pipeline/examples/models.example.tsv
+    publish: true
+    filters:
+      branches:
+        - main
+    topic: ChromBPNet motif discovery for multiple five-fold model groups with model and MoDISco result manifests.
   - name: chrombpnet-finemo-variant-motifs
     subclass: WDL
     primaryDescriptorPath: /workflows/annotate_variant_motifs.wdl
