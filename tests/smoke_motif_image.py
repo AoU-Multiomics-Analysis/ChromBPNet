@@ -85,6 +85,23 @@ def main():
             run('fold_contributions.py', *args, '--allow-cpu', '--output-dir', out)
             scores.append(out / 'scores.h5')
             beds.append(out / 'regions.bed')
+        # Exercise the separate profile graph with real DeepSHAP too.
+        profile_prepared = root / 'prepared_profile'
+        run('prepare_motif_inputs.py', '--models-list', model_list, '--peaks', peaks,
+            '--genome', fasta, '--chrom-sizes', sizes, '--cell-type', 'synthetic_CD4',
+            '--input-length', width, '--head', 'profile', '--max-peaks', '8',
+            '--output-dir', profile_prepared)
+        profile_args = common.copy()
+        for flag, name in [('--peaks', 'peaks.bed'), ('--genome', 'reference.fa'),
+                           ('--genome-index', 'reference.fa.fai'), ('--preparation', 'preparation.json')]:
+            profile_args[profile_args.index(flag) + 1] = profile_prepared / name
+        run('fold_contributions.py', *profile_args, '--head', 'profile', '--allow-cpu',
+            '--output-dir', root / 'profile')
+        with h5py.File(root / 'profile/scores.h5') as handle:
+            assert handle.attrs['head'] == 'profile'
+            values = handle['shap/seq'][:]
+            assert values.shape == (8, 4, width) and np.isfinite(values).all()
+            assert np.abs(values).max() > 0
         scores_list, beds_list = root / 'scores.list', root / 'beds.list'
         scores_list.write_text('\n'.join(map(str, scores)) + '\n')
         beds_list.write_text('\n'.join(map(str, beds)) + '\n')
@@ -92,7 +109,11 @@ def main():
         run('average_contributions.py', '--scores-list', scores_list, '--regions-list', beds_list,
             '--output', average, '--output-regions', root / 'regions.bed', '--metadata', root / 'average.json')
         with h5py.File(average) as handle:
-            expected = np.mean(np.stack([h5py.File(path)['shap/seq'][:] for path in scores]), axis=0)
+            fold_arrays = []
+            for path in scores:
+                with h5py.File(path) as fold_handle:
+                    fold_arrays.append(fold_handle['shap/seq'][:])
+            expected = np.mean(np.stack(fold_arrays), axis=0)
             np.testing.assert_allclose(handle['shap/seq'][:], expected, rtol=1e-5, atol=1e-7)
             assert handle['raw/seq'].shape == (nregions, 4, width)
         results = root / 'modisco_results.h5'

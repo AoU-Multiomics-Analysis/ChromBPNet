@@ -15,14 +15,15 @@ dependencies:
   - git=2.47.1
   - numba=0.57.1
   - scikit-learn=1.6.1
-  - python-igraph=0.11.8
-  - leidenalg=0.10.2
   - matplotlib=3.9.4
   - scikit-image=0.24.0
   - ipython=8.32.0
   - jinja2=3.1.6
   - meme=5.5.7
   - pip:
+      # Wheels bundle graph libraries and avoid MEME's incompatible ICU dependency.
+      - igraph==0.11.8
+      - leidenalg==0.10.2
       - tensorflow[and-cuda]==2.15.1
       - tensorflow-probability==0.23.0
       - deeplift==0.6.13.0
