@@ -28,7 +28,24 @@ class MotifPipelineTests(unittest.TestCase):
             handle.attrs.update(head=head, cell_type='CD4', fold_index=fold)
         bed = self.root / f'fold{fold}.bed'
         bed.write_text(region_text or 'chr1\t40\t60\tp1\t0\t.\t0\t0\t0\t10\n')
+        from motif_io import sha256
+        with h5py.File(path, 'r+') as handle:
+            handle.attrs['region_sha256'] = sha256(bed)
         return path, bed
+
+    def test_average_checks_and_preserves_region_identity_hash(self):
+        from average_contributions import average_contributions
+        from motif_io import sha256
+        files, beds = zip(*(self.fixture(i) for i in range(5)))
+        with h5py.File(files[3], 'r+') as handle:
+            handle.attrs['region_sha256'] = 'WRONG'
+        with self.assertRaisesRegex(ValueError, 'row identity'):
+            average_contributions(files, beds, self.root/'average.h5', self.root/'regions.bed')
+        with h5py.File(files[3], 'r+') as handle:
+            handle.attrs['region_sha256'] = sha256(beds[3])
+        average_contributions(files, beds, self.root/'average.h5', self.root/'regions.bed')
+        with h5py.File(self.root/'average.h5') as handle:
+            self.assertEqual(handle.attrs['region_sha256'], sha256(beds[0]))
 
     def test_average_preserves_signed_hypothetical_scores_and_sequence(self):
         from average_contributions import average_contributions

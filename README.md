@@ -332,3 +332,9 @@ for this repository, then merge the configuration into `main`. Dockstore uses
 the app connection to register and publish the workflow. Adding this file alone
 does not confirm publication. Replace the example input URIs and image digest
 before a Terra run.
+# Fi-NeMo motif annotation
+
+See [finemo_pipeline/README.md](finemo_pipeline/README.md) for Terra workflows
+that call motifs from five-fold peak contributions and compare REF/ALT variant
+motif calls. The variant workflow includes variants outside ATAC peaks and
+exports candidate TF annotations, motif gains/losses, and score differences.

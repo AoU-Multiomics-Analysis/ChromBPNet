@@ -111,8 +111,49 @@ class SummaryTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 compare_variants(rows, hits, maps, {}, 3)
 
+    def test_inserted_only_hit_has_no_reference_interval(self):
+        from summarize_finemo import compare_variants
+        maps = np.tile(np.arange(32), (4, 1))
+        maps[1, 17:23] = -1
+        calls, changes, _ = compare_variants(self.rows(), [self.hit(1, start=17)], maps, {}, 3)
+        self.assertEqual(calls[0]['reference_start'], '')
+        self.assertEqual(calls[0]['reference_end'], '')
+        self.assertEqual(calls[0]['insertion_anchor'], 100)
+        self.assertEqual(changes[0]['reference_start'], '')
+
+    def test_dense_matching_does_not_invent_gains_or_losses(self):
+        from summarize_finemo import compare_variants
+        hits = [self.hit(0, start=10), self.hit(0, start=13), self.hit(1, start=12), self.hit(1, start=15)]
+        _, changes, _ = compare_variants(self.rows(), hits, np.tile(np.arange(32), (4, 1)), {}, 2)
+        self.assertEqual([r['status'] for r in changes], ['retained', 'retained'])
+
 
 class FinemoInputTests(unittest.TestCase):
+    def test_contribution_row_hash_must_match_peak_file(self):
+        from prepare_finemo import prepare
+        from finemo_io import sha256
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            rows = root / 'rows.bed'
+            rows.write_text('chr1\t20\t60\tp1\t0\t.\t0\t0\t0\t20\n')
+            raw = np.zeros((1,4,32), dtype=np.int8)
+            raw[:,0]=1
+            scores = root / 'mean.h5'
+            with h5py.File(scores,'w') as h:
+                h.create_dataset('raw/seq',data=raw)
+                h.create_dataset('shap/seq',data=raw.astype(np.float32))
+                h.attrs.update(cell_type='CD4',head='counts',fold_count=5,averaging='arithmetic_mean_signed',region_sha256='WRONG')
+            motifs = root / 'motifs.h5'
+            with h5py.File(motifs,'w') as h:
+                h.create_dataset('pos_patterns/pattern_0/contrib_scores',data=np.ones((6,4)))
+            provenance=root/'provenance.json'
+            provenance.write_text(json.dumps(dict(cell_type='CD4',head='counts',prepared_peak_sha256=sha256(rows))))
+            with self.assertRaisesRegex(ValueError,'row identity'):
+                prepare(scores,rows,motifs,provenance,root/'prepared','CD4','counts')
+            with h5py.File(scores,'r+') as h:
+                del h.attrs['region_sha256']
+            with self.assertRaisesRegex(ValueError,'row identity'):
+                prepare(scores,rows,motifs,provenance,root/'prepared','CD4','counts')
     def test_existing_tfmodisco_match_schema(self):
         from finemo_io import tf_matches
         with tempfile.TemporaryDirectory() as tmp:

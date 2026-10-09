@@ -64,7 +64,7 @@ def main():
         with h5py.File(average,'w') as handle:
             handle.create_dataset('raw/seq',data=raw)
             handle.create_dataset('shap/seq',data=hyp)
-            handle.attrs.update(cell_type='synthetic_CD4',head='counts',fold_count=5,averaging='arithmetic_mean_signed')
+            handle.attrs.update(cell_type='synthetic_CD4',head='counts',fold_count=5,averaging='arithmetic_mean_signed',region_sha256=sha256(rows))
         provenance=root/'motif_provenance.json'
         provenance.write_text(json.dumps(dict(cell_type='synthetic_CD4',head='counts')))
         matches=root/'matches.tsv'
@@ -103,6 +103,8 @@ def main():
         # Exercise absolute genomic coordinates with the existing discovery inputs.
         peaks=root/'peaks.bed'
         peaks.write_text(''.join(f'chr1\t{80+i*100}\t{120+i*100}\tp{i}\t0\t.\t0\t0\t0\t20\n' for i in range(8)))
+        with h5py.File(average,'r+') as handle:
+            handle.attrs['region_sha256']=sha256(peaks)
         provenance.write_text(json.dumps(dict(cell_type='synthetic_CD4',head='counts',prepared_peak_sha256=sha256(peaks))))
         peak_prepared=root/'peak_prepared'
         run('prepare_finemo.py','--contributions',average,'--regions',peaks,'--motifs',motifs,

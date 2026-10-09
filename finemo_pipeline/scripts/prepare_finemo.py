@@ -44,6 +44,8 @@ def prepare(contributions, regions, motifs, provenance, output, cell_type, head,
             raise ValueError('Contribution cell type or head differs')
         if handle.attrs.get('fold_count') != 5 or handle.attrs.get('averaging') != 'arithmetic_mean_signed':
             raise ValueError('Use the signed five-fold averaged contribution file')
+        if handle.attrs.get('region_sha256') != sha256(regions):
+            raise ValueError('Contribution row identity is missing or differs; regenerate the mean with the updated averaging script')
         raw = handle['raw/seq'][:]
         hyp = handle['shap/seq'][:]
         validate_arrays(raw, hyp)

@@ -1,6 +1,6 @@
 # Fi-NeMo workflow design for Terra
 
-Status: proposed design for user review. Implementation has not started.
+Status: approved in chat and implemented in draft PR #12. Complete Terra execution remains untested.
 
 ## Purpose
 
@@ -58,8 +58,9 @@ Keep original pattern IDs such as `pos_patterns.pattern_0`. Join the existing
 Tomtom candidate-TF table without replacing pattern IDs or discarding multiple
 TF matches. TF similarity does not establish occupancy or methylation causality.
 
-For existing discovery regions, recall statistics require the exact discovery
-row order and discovery window. Disable recall for REF/ALT variant sequences.
+The HTML summary does not compute seqlet recall. The original motif-discovery
+report remains available for seqlet inspection. REF/ALT variant sequences
+cannot use discovery-region recall statistics.
 Record checksums, package versions, parameters, row counts, and task logs.
 
 ## Images and WDL

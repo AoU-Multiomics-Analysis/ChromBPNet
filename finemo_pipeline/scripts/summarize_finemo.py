@@ -8,6 +8,8 @@ from collections import Counter
 from pathlib import Path
 
 import h5py
+import numpy as np
+from scipy.optimize import linear_sum_assignment
 
 from finemo_io import readable, read_rows, read_table, write_table, tf_matches, sha256, write_json
 
@@ -54,8 +56,8 @@ def compare_variants(rows, hits, maps, matches, tolerance=3, crop_start=0):
         positions = maps[row_id, a:b]
         mapped = positions[positions >= 0]
         anchor = int(row['insertion_anchor'])
-        ref_start = int(mapped.min()) if len(mapped) else anchor
-        ref_end = int(mapped.max()) + 1 if len(mapped) else anchor + 1
+        ref_start = int(mapped.min()) if len(mapped) else ''
+        ref_end = int(mapped.max()) + 1 if len(mapped) else ''
         x, y = int(row['edit_start']), int(row['edit_end'])
         overlap = (a < y and b > x) if x != y else a <= x < b
         call = dict(variant_id=row['variant_id'], allele=row['allele'], chr=row['chr'], pos=int(row['pos']),
@@ -67,18 +69,28 @@ def compare_variants(rows, hits, maps, matches, tolerance=3, crop_start=0):
         groups.setdefault((row['variant_id'], hit['motif_name'], hit['strand']), {'REF': [], 'ALT': []})[row['allele']].append(call)
     changes = []
     for (variant_id, motif, strand), pair in sorted(groups.items()):
-        refs = sorted(pair['REF'], key=lambda r: (r['reference_start'], r['allele_start']))
-        alts = sorted(pair['ALT'], key=lambda r: (r['reference_start'], r['allele_start']))
-        # Greedy minimum boundary-distance matching, with explicit deterministic ties.
-        candidates = []
+        key = lambda r: (r['reference_start'] if r['reference_start'] != '' else r['insertion_anchor'], r['allele_start'])
+        refs = sorted(pair['REF'], key=key)
+        alts = sorted(pair['ALT'], key=key)
+        n, m = len(refs), len(alts)
+        penalty = (n + m + 1) * (tolerance + 1)
+        costs = np.full((n + m, n + m), 4 * penalty, dtype=np.float64)
+        costs[:n, m:] = penalty
+        costs[n:, :m] = penalty
+        costs[n:, m:] = 0
         for i, ref in enumerate(refs):
             for j, alt in enumerate(alts):
+                # Inserted-only motifs have no reference locus to pair with REF.
+                if ref['reference_start'] == '' or alt['reference_start'] == '':
+                    continue
                 delta = max(abs(ref['reference_start'] - alt['reference_start']), abs(ref['reference_end'] - alt['reference_end']))
                 if delta <= tolerance:
-                    candidates.append((delta, i, j))
+                    costs[i, j] = delta
         used_ref, used_alt, paired = set(), set(), []
-        for _, i, j in sorted(candidates):
-            if i not in used_ref and j not in used_alt:
+        # Maximize valid pair count, then minimize total boundary distance.
+        # Fixed sorted row/column order makes tied assignments stable.
+        for i, j in zip(*linear_sum_assignment(costs)):
+            if i < n and j < m and costs[i, j] <= tolerance:
                 used_ref.add(i)
                 used_alt.add(j)
                 paired.append((refs[i], alts[j]))

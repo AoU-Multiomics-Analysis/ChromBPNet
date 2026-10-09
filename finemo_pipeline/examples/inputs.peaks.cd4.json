@@ -1,0 +1,10 @@
+{
+  "ChromBPNetMotifCalls.contributions": "gs://YOUR_BUCKET/CD4_Naive/counts/averaged.h5",
+  "ChromBPNetMotifCalls.regions": "gs://YOUR_BUCKET/CD4_Naive/counts/regions.bed",
+  "ChromBPNetMotifCalls.motifs": "gs://YOUR_BUCKET/CD4_Naive/counts/modisco_results.h5",
+  "ChromBPNetMotifCalls.motif_provenance": "gs://YOUR_BUCKET/CD4_Naive/counts/preparation.json",
+  "ChromBPNetMotifCalls.tf_matches": "gs://YOUR_BUCKET/CD4_Naive/counts/candidate_tf_matches.tsv",
+  "ChromBPNetMotifCalls.cell_type": "CD4_Naive",
+  "ChromBPNetMotifCalls.head": "counts",
+  "ChromBPNetMotifCalls.docker_image": "ghcr.io/aou-multiomics-analysis/chrombpnet/finemo@sha256:REPLACE_WITH_TESTED_DIGEST"
+}
