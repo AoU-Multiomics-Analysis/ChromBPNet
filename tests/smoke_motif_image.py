@@ -120,6 +120,8 @@ def main():
             assert handle['raw/seq'].shape == (nregions, 4, width)
             projected = handle['projected_shap/seq'][:]
             assert projected.min() < 0 < projected.max()
+            assert projected[:, :, 190:202].sum(axis=(1, 2)).mean() > 0
+            assert projected[:, :, 290:302].sum(axis=(1, 2)).mean() < 0
         results = root / 'modisco_results.h5'
         run('discover_motifs.py', '--contributions', average, '--output', results,
             '--metadata', root / 'discovery.json', '--max-seqlets', '4096', '--n-leiden', '1')
@@ -130,16 +132,25 @@ def main():
             for pattern in patterns:
                 assert all(key in pattern for key in ['sequence', 'contrib_scores', 'hypothetical_contribs', 'seqlets'])
         database = root / "known ' $(touch NEVER).meme"
+        reference_motifs = [('SYNTHETIC', 'Synthetic_TF', motif),
+                            ('REPRESSOR', 'Synthetic_Repressor', repressor)]
+        for i in range(62):
+            decoy = ''.join(alphabet[rng.integers(0, 4, len(motif))])
+            reference_motifs.append((f'DECOY{i}', f'Decoy_{i}', decoy))
         with database.open('w') as stream:
-            stream.write('MEME version 4\n\nALPHABET= ACGT\n\nstrands: + -\n\nBackground letter frequencies\nA 0.25 C 0.25 G 0.25 T 0.25\n\nMOTIF SYNTHETIC Synthetic_TF\n')
-            stream.write(f'letter-probability matrix: alength= 4 w= {len(motif)} nsites= 128\n')
-            for base in motif:
-                stream.write(' '.join('0.97' if item == base else '0.01' for item in 'ACGT') + '\n')
+            stream.write('MEME version 4\n\nALPHABET= ACGT\n\nstrands: + -\n\nBackground letter frequencies\nA 0.25 C 0.25 G 0.25 T 0.25\n\n')
+            for identifier, label, sequence in reference_motifs:
+                stream.write(f'MOTIF {identifier} {label}\n')
+                stream.write(f'letter-probability matrix: alength= 4 w= {len(sequence)} nsites= 128\n')
+                for base in sequence:
+                    stream.write(' '.join('0.97' if item == base else '0.01' for item in 'ACGT') + '\n')
+                stream.write('\n')
         report = root / 'annotation'
         run('report_motifs.py', '--motifs', results, '--motif-database', database, '--output-dir', report)
         with (report / 'candidate_tf_matches.tsv').open() as stream:
             matches = list(csv.DictReader(stream, delimiter='\t'))
-        assert any(match['candidate_tf'] == 'Synthetic_TF' for match in matches), matches
+        assert any(match['candidate_tf'] in {'Synthetic_TF', 'Synthetic_Repressor'} for match in matches), matches
+        assert json.loads((report / 'report_metadata.json').read_text())['reference_motif_count'] == 64
         assert (report / 'report/report.html').stat().st_size > 0
         with zipfile.ZipFile(report / 'report_bundle.zip') as archive:
             assert archive.testzip() is None

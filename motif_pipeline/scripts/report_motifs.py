@@ -96,7 +96,8 @@ def main():
                    cwd=output, env=dict(os.environ, MPLBACKEND='Agg'), check=True)
     write_json(output / 'report_metadata.json', dict(
         modisco=importlib.metadata.version('modisco'), motif_database_sha256=sha256(database),
-        pattern_count=len(inventory), significant_match_count=len(matches), match_qvalue=args.match_qvalue,
+        pattern_count=len(inventory), reference_motif_count=len(labels),
+        significant_match_count=len(matches), match_qvalue=args.match_qvalue,
         annotation='candidate TF motif similarity; not proof of TF occupancy',
         tomtom_distance='pearson', min_overlap=5, trim_threshold=0.3, plotting_backend='Agg'))
     shutil.make_archive(str(output / 'report_bundle'), 'zip', root_dir=output,
