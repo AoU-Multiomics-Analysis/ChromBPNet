@@ -1,0 +1,16 @@
+{
+  "ChromBPNetMotifDiscovery.fold_models": [
+    "gs://YOUR_BUCKET/TenK10K_ATAC/CD4_Naive/fold0/chrombpnet_nobias.h5",
+    "gs://YOUR_BUCKET/TenK10K_ATAC/CD4_Naive/fold1/chrombpnet_nobias.h5",
+    "gs://YOUR_BUCKET/TenK10K_ATAC/CD4_Naive/fold2/chrombpnet_nobias.h5",
+    "gs://YOUR_BUCKET/TenK10K_ATAC/CD4_Naive/fold3/chrombpnet_nobias.h5",
+    "gs://YOUR_BUCKET/TenK10K_ATAC/CD4_Naive/fold4/chrombpnet_nobias.h5"
+  ],
+  "ChromBPNetMotifDiscovery.peaks": "gs://YOUR_BUCKET/TenK10K_ATAC/peaks/CD4_Naive.narrowPeak.tsv",
+  "ChromBPNetMotifDiscovery.genome": "gs://YOUR_BUCKET/reference/hg38.fa.gz",
+  "ChromBPNetMotifDiscovery.chrom_sizes": "gs://YOUR_BUCKET/reference/hg38.chrom.sizes",
+  "ChromBPNetMotifDiscovery.motif_database": "gs://YOUR_BUCKET/motifs/human_motifs.meme",
+  "ChromBPNetMotifDiscovery.cell_type": "CD4_Naive",
+  "ChromBPNetMotifDiscovery.head": "counts",
+  "ChromBPNetMotifDiscovery.docker_image": "ghcr.io/aou-multiomics-analysis/chrombpnet/motif-discovery@sha256:REPLACE_WITH_TESTED_DIGEST"
+}
