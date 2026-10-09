@@ -1,5 +1,8 @@
 # ChromBPNet variant scoring in Terra
 
+For five-fold TF-MoDISco motif discovery and known-TF motif matching, see the
+[separate motif workflow and image](motif_pipeline/README.md).
+
 [workflows/score_variants.wdl](workflows/score_variants.wdl) scores predicted chromatin
 effects for a variant list across cell-type models. The workflow uses WDL 1.0.
 It runs one GPU task per model and merges the score files in a CPU task.
